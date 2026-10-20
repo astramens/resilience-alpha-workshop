@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.gitignore
+.env*
+frontend/node_modules
+backend/__pycache__
+ai-engine/__pycache__
+remediation/__pycache__
+
+# Camera USB du PC Hote
+.camera-agent.json
+.face-backup-*/
+host-camera/models/
+.venv-camera/

@@ -1,0 +1,22 @@
+{
+  "FACE_AUTH_README.md": "28fd050558713b316f63f3b62ccc85b7b993fe0c5090f4fad77d54dd01f264d0",
+  "VALIDATION_FACE.md": "3737d84111ffa973492625cdbe9b57ff9d1a89625f5a3e7a63644fc0b756a09a",
+  "app/api/[...path]/route.ts": "7b8b896d96684e4e32be198aa4e03234f914edc990133df64f202413bb2636b0",
+  "app/page.tsx": "a0af6998f429d261b045276b4522e5d433503fec477c280f0d879ffd8524b707",
+  "backend/Dockerfile": "a14c09c7f11f11c8f14caacce07c0311b1953b179b01a1bd6c05343bacdf25e6",
+  "backend/face_auth.py": "73c04d9b0ca0e8c238f90d044f196c0055202f98a3c2f98b1f0d0b5ac8b96d70",
+  "backend/face_rules.py": "d3126ccd130f027d50145ab58ba847235823c643085a9662e3c8f02335917ab7",
+  "backend/main.py": "5663fd2054839580b0d1fdafb7743f0abad19659a8d20d9273369480ce626e93",
+  "backend/requirements.txt": "ef41e6afa63bc7fda6abd969e7c8b0223f81a6b8214e709366b74da92b3fb67a",
+  "backend/security.py": "e9e0f1a070feda05b0c16c25e460adbc625ba9bb111b554eee01b96a84112602",
+  "components/auth-panel.tsx": "09cc87d080cef4b1e385b0f8c322ba18916b835bef41887ffd93697ee821deb0",
+  "components/user-admin.tsx": "888cc5ce10dd2c15f14117bae3ab3924bdf6145171a38b23ec598c01a892611b",
+  "db/face-auth.sql": "a00f6721c636cf1b0b98e79545f9ba514e1d44b1ef751c355dc50ba01e7d6100",
+  "docker-compose.yml": "429e74dae1e34f3b27ffcc1ef40c3ee786f8dbdc8706e62fc7d882c12d433402",
+  "host-camera/agent.py": "63b1d345398338949d4332cc5f013fabb33d9e1d465561d1bf4503044a25c3f4",
+  "host-camera/requirements.txt": "495519a7862a8a451dc27bff87b9820d3d3095952f0230af08f7769eb024db12",
+  "scripts/face_migrate.py": "b789ae12a5b9803717c64899043968e48180a205b16a931692a144fdcef9ec7f",
+  "scripts/face_setup.py": "9d5f2d2a270fecf2f2ec48de542af8520229d5ad861a4181e2bd64f7ad6b7e73",
+  "tests/test_api.py": "ea3d8749db021fe790e234c8234bf804b84df3605218ec06715893d362fed6c4",
+  "tests/test_face_auth.py": "ee7e4141a8605ab963c65c24033422858aca021262fbc944f4ea11405dbf82c1"
+}

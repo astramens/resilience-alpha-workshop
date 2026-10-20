@@ -1,0 +1,81 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-resilience}
+      POSTGRES_USER: ${POSTGRES_USER:-resilience}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python scripts/configure.py first}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?Run python scripts/configure.py first}
+      OPERATOR_USERNAME: ${OPERATOR_USERNAME:-operateur}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://192.168.137.1:3000}
+      CAMERA_AGENT_TOKEN: ${CAMERA_AGENT_TOKEN:?Run python scripts/face_setup.py first}
+      LED_DEVICE_TOKEN: ${LED_DEVICE_TOKEN:?Run python scripts/face_setup.py first}
+      FACE_COSINE_THRESHOLD: ${FACE_COSINE_THRESHOLD:-0.45}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-resilience}:${POSTGRES_PASSWORD:?Run python scripts/configure.py first}@db:5432/${POSTGRES_DB:-resilience}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  ai-engine:
+    build:
+      context: ./ai-engine
+    environment:
+      BACKEND_URL: http://backend:8000
+      REMEDIATION_URL: http://remediation:9000
+      REMEDIATION_TOKEN: ${REMEDIATION_TOKEN:?Run python scripts/configure.py first}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-10}
+    depends_on:
+      backend:
+        condition: service_healthy
+      remediation:
+        condition: service_started
+    restart: unless-stopped
+
+  remediation:
+    build:
+      context: ./remediation
+    environment:
+      BACKEND_URL: http://backend:8000
+      TARGET_CONTAINER: ${TARGET_CONTAINER:-}
+      REMEDIATION_TOKEN: ${REMEDIATION_TOKEN:?Run python scripts/configure.py first}
+      COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:-resilience-alpha}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      API_INTERNAL_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
