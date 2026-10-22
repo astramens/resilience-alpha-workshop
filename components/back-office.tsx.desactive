@@ -1,0 +1,134 @@
+'use client'
+import {Fragment,useCallback,useEffect,useState} from 'react'
+import {Activity,Boxes,ClipboardList,LayoutDashboard,LogOut,Truck,Users,Wrench} from 'lucide-react'
+import UserAdmin from '@/components/user-admin'
+import OrderTrack from '@/components/order-track'
+import {api,CATEGORIES,date,GRADES,money,ORDER_STATUS,STAGES,type Order,type ProductDetail} from '@/lib/shop'
+
+type AdminProduct=ProductDetail&{required_checks:string[]}
+type Incident={id:number;ref:string;status:string;reason:string;action:string;detail:Record<string,unknown>;result:Record<string,unknown>;business_verified:boolean|null;opened_at:string;closed_at:string|null}
+type Monitor={observed_at:string;health:{status:string};metrics:{latency_ms:number|null;error_rate:number;sample_count:number};missing:string[];note:string}
+type Overview={orders:{status:string;n:number;amount:number}[];workshop:{stage:string;n:number}[];low_stock:{id:number;name:string;stock:number}[];open_incidents:number}
+const NEXT:Record<string,string>={recu:'inspecte',inspecte:'repare',repare:'controle',controle:'en_stock'}
+const INCIDENT:Record<string,string>={detecte:'Détecté',remediation:'Remédiation en cours',resolu:'Résolu',echec:'Échec'}
+const REASONS:Record<string,string>={ml_anomaly_with_confirmed_health_failure:'Anomalie ML confirmée par des sondes en échec',availability_fallback_six_failed_health_probes:'Indisponibilité : six sondes consécutives en échec'}
+
+function useFeedback(){const [error,E]=useState(''),[notice,N]=useState('');return {error,notice,E,N,box:<>{error&&<p className="alert" role="alert">{error}<button onClick={()=>E('')} aria-label="Fermer">×</button></p>}{notice&&<p className="notice" role="status">{notice}<button onClick={()=>N('')} aria-label="Fermer">×</button></p>}</>}}
+
+function Dashboard({go}:{go:(t:string)=>void}){
+ const [o,O]=useState<Overview|null>(null),f=useFeedback()
+ useEffect(()=>{const load=()=>api('admin/overview').then(O).catch(e=>f.E((e as Error).message));load();const t=setInterval(load,5000);return()=>clearInterval(t)},[])
+ const count=(s:string)=>o?.orders.find(x=>x.status===s)?.n??0
+ const revenue=o?.orders.filter(x=>x.status!=='annulee').reduce((s,x)=>s+Number(x.amount),0)??0
+ return <>{f.box}<div className="kpis">
+  <button className="kpi" onClick={()=>go('orders')}><small>Commandes à préparer</small><strong>{count('payee')+count('en_preparation')}</strong><span>{count('expediee')} expédiée(s)</span></button>
+  <button className="kpi" onClick={()=>go('workshop')}><small>Articles à l’atelier</small><strong>{o?.workshop.reduce((s,x)=>s+x.n,0)??'—'}</strong><span>{o?.workshop.map(w=>`${w.n} ${STAGES[w.stage].toLowerCase()}`).join(' · ')||'File vide'}</span></button>
+  <button className="kpi" onClick={()=>go('monitor')}><small>Incidents SI ouverts</small><strong className={o?.open_incidents?'ko':''}>{o?.open_incidents??'—'}</strong><span>Détection IA et remédiation</span></button>
+  <div className="kpi"><small>Ventes simulées</small><strong>{money(revenue)}</strong><span>Hors commandes annulées</span></div>
+ </div>
+ <section className="panel"><h2>Stocks faibles</h2>{o?.low_stock.length?<ul className="plain">{o.low_stock.map(p=><li key={p.id}>{p.name}<b className={p.stock?'':'ko'}>{p.stock} en stock</b></li>)}</ul>:<p className="muted">Aucun article publié sous le seuil d’un exemplaire.</p>}</section></>
+}
+
+function StageForm({p,canWrite,done}:{p:AdminProduct;canWrite:boolean;done:(m:string)=>void}){
+ const target=NEXT[p.stage],[busy,B]=useState(false),[error,E]=useState('')
+ async function submit(e:React.FormEvent<HTMLFormElement>){
+  e.preventDefault();const d=new FormData(e.currentTarget);B(true);E('')
+  const body={note:d.get('note')||'',defects:d.get('defects')||'',repairs:d.get('repairs')||'',grade:d.get('grade')||null,quantity:Number(d.get('quantity')||1),checks:p.required_checks.map(label=>({label,ok:d.get('check:'+label)==='on'}))}
+  try{const r=await api('admin/products/'+p.id+'/stage',body);done(r.conforming?`${p.sku} : ${STAGES[r.stage]}.`:`${p.sku} : contrôle non conforme (${r.anomalies.join(', ')}). Retour en réparation.`)}catch(e){E((e as Error).message)}finally{B(false)}
+ }
+ if(!target)return null
+ return <form className="stage-form" onSubmit={submit}>
+  {target==='inspecte'&&<><label>Défauts constatés<textarea name="defects" required minLength={3} placeholder="Rayures, pièce manquante… ou « Aucun défaut »"/></label><label>État<select name="grade" defaultValue={p.grade}>{Object.entries(GRADES).map(([k,v])=><option key={k} value={k}>{k} · {v}</option>)}</select></label></>}
+  {target==='repare'&&<label>Réparations réalisées<textarea name="repairs" required minLength={3} placeholder="Pièces remplacées, finitions…"/></label>}
+  {target==='controle'&&<fieldset><legend>Contrôles obligatoires ({CATEGORIES[p.category]})</legend>{p.required_checks.map(c=><label className="check" key={c}><input type="checkbox" name={'check:'+c}/>{c}</label>)}</fieldset>}
+  {target==='en_stock'&&<label>Exemplaires remis en stock<input name="quantity" type="number" min={1} max={99} defaultValue={1}/></label>}
+  <label>Note (facultatif)<input name="note" maxLength={1000}/></label>
+  {error&&<p className="alert">{error}</p>}
+  <button className="btn primary" disabled={busy||!canWrite}>{busy?'Enregistrement…':'Valider : '+STAGES[target]}</button>
+ </form>
+}
+
+function Workshop({canWrite}:{canWrite:boolean}){
+ const [items,I]=useState<AdminProduct[]>([]),[open,O]=useState<number|null>(null),[busy,B]=useState(false),f=useFeedback()
+ const load=useCallback(()=>api('admin/products').then(I).catch(e=>f.E((e as Error).message)),[])
+ useEffect(()=>{void load()},[load])
+ async function intake(e:React.FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget;B(true);f.E('');try{const r=await api('admin/products',Object.fromEntries(new FormData(form)));form.reset();f.N(`Article ${r.sku} réceptionné. Il entre dans la file d’inspection.`);await load()}catch(e){f.E((e as Error).message)}finally{B(false)}}
+ const queue=items.filter(p=>p.stage!=='en_stock')
+ return <>{f.box}
+  <section className="panel"><h2>Réception d’un article</h2><form className="grid-form" onSubmit={intake}>
+   <label>Désignation<input name="name" required minLength={3} maxLength={160}/></label>
+   <label>Catégorie<select name="category">{Object.entries(CATEGORIES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
+   <label>Prix de vente prévu (€)<input name="price" type="number" min="1" step="0.01" required/></label>
+   <label>Provenance<input name="origin" maxLength={120} placeholder="Studio, théâtre, parc…"/></label>
+   <label className="span2">Résumé<input name="summary" maxLength={255}/></label>
+   <button className="btn primary" disabled={busy||!canWrite}>Enregistrer la réception</button>
+  </form></section>
+  <section className="panel"><h2>File de l’atelier <small>{queue.length} article(s)</small></h2>
+   <div className="pipeline">{['recu','inspecte','repare','controle'].map(s=><div key={s}><h3>{STAGES[s]}<b>{queue.filter(p=>p.stage===s).length}</b></h3>{queue.filter(p=>p.stage===s).map(p=><button key={p.id} className={open===p.id?'job on':'job'} onClick={()=>O(open===p.id?null:p.id)}><b>{p.sku}</b>{p.name}</button>)}</div>)}</div>
+   {queue.filter(p=>p.id===open).map(p=><div className="job-detail" key={p.id}><div><h3>{p.name}</h3><p className="muted">{p.sku} · {CATEGORIES[p.category]} · état {p.grade} · {money(p.price)}</p><ol className="mini-passport">{p.passport.map((s,i)=><li key={i}><b>{STAGES[s.stage]}</b> {date(s.created_at)} · {s.actor} — {s.note}</li>)}</ol></div><StageForm p={p} canWrite={canWrite} done={m=>{f.N(m);O(null);void load()}}/></div>)}
+  </section></>
+}
+
+function PhotoInput({p,canWrite,done,fail}:{p:AdminProduct;canWrite:boolean;done:(m:string)=>void;fail:(m:string)=>void}){
+ const [busy,B]=useState(false)
+ async function send(file:File|undefined){
+  if(!file)return
+  if(file.size>3*1024*1024)return fail('Photo trop lourde (3 Mo maximum).')
+  B(true)
+  try{const r=await fetch('/api/admin/products/'+p.id+'/photo',{method:'POST',credentials:'same-origin',headers:{'Content-Type':file.type||'application/octet-stream'},body:file});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(typeof d.detail==='string'?d.detail:'Envoi impossible.');done(p.sku+' : photo mise à jour.')}catch(e){fail((e as Error).message)}finally{B(false)}
+ }
+ return <label className="photo-input" title="Changer la photo">{p.image?<img src={p.image} alt=""/>:<span>Aucune</span>}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||!canWrite} onChange={e=>void send(e.target.files?.[0])}/><small>{busy?'Envoi…':'Changer'}</small></label>
+}
+
+function Stock({canWrite}:{canWrite:boolean}){
+ const [items,I]=useState<AdminProduct[]>([]),[busy,B]=useState(false),f=useFeedback()
+ const load=useCallback(()=>api('admin/products').then(I).catch(e=>f.E((e as Error).message)),[])
+ useEffect(()=>{void load()},[load])
+ async function save(e:React.FormEvent<HTMLFormElement>,p:AdminProduct){e.preventDefault();const d=new FormData(e.currentTarget);B(true);f.E('');try{await api('admin/products/'+p.id+'/update',{price:d.get('price'),stock:Number(d.get('stock')),published:d.get('published')==='on'});f.N(p.sku+' mis à jour.');await load()}catch(e){f.E((e as Error).message)}finally{B(false)}}
+ return <>{f.box}<section className="panel"><h2>Articles et stocks</h2><div className="table-scroll"><table><thead><tr><th>Photo</th><th>Article</th><th>Étape</th><th>Prix (€)</th><th>Stock</th><th>En vente</th><th/></tr></thead><tbody>{items.map(p=><tr key={p.id+':'+p.updated_at}><td><PhotoInput p={p} canWrite={canWrite} done={m=>{f.N(m);void load()}} fail={f.E}/></td><td><b>{p.name}</b><small>{p.sku} · {CATEGORIES[p.category]} · état {p.grade}</small></td><td><span className={'status st-'+p.stage}>{STAGES[p.stage]}</span></td><td colSpan={4}><form className="inline-form" onSubmit={e=>save(e,p)}><input aria-label="Prix" name="price" type="number" min="1" step="0.01" defaultValue={p.price}/><input aria-label="Stock" name="stock" type="number" min="0" max="999" defaultValue={p.stock}/><input aria-label="En vente" name="published" type="checkbox" defaultChecked={p.published} disabled={p.stage!=='en_stock'}/><button className="btn ghost" disabled={busy||!canWrite}>Enregistrer</button></form></td></tr>)}</tbody></table></div></section></>
+}
+
+function Orders({canWrite}:{canWrite:boolean}){
+ const [orders,O]=useState<Order[]>([]),[status,S]=useState(''),[open,X]=useState<number|null>(null),[busy,B]=useState(false),f=useFeedback()
+ const load=useCallback(()=>api('admin/orders?status='+status).then(O).catch(e=>f.E((e as Error).message)),[status])
+ useEffect(()=>{void load();const t=setInterval(()=>void load(),8000);return()=>clearInterval(t)},[load])
+ async function step(o:Order,action:string){if(action==='cancel'&&!window.confirm('Annuler la commande n° '+o.id+' et restituer le stock ?'))return;B(true);f.E('');try{const r=await api('admin/orders/'+o.id+'/step',{action});f.N(`Commande n° ${o.id} : ${ORDER_STATUS[r.status]}.`);await load()}catch(e){f.E((e as Error).message)}finally{B(false)}}
+ const next:Record<string,string>={payee:'Préparer',en_preparation:'Expédier',expediee:'Marquer livrée'}
+ return <>{f.box}<section className="panel"><div className="panel-head"><h2>Commandes</h2><select aria-label="Filtrer par statut" value={status} onChange={e=>S(e.target.value)}><option value="">Toutes</option>{Object.entries(ORDER_STATUS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
+  <div className="table-scroll"><table><thead><tr><th>N°</th><th>Client</th><th>Date</th><th>Articles</th><th>Total</th><th>Statut</th><th>Actions</th></tr></thead><tbody>{orders.map(o=><Fragment key={o.id}>
+   <tr><td><b>#{o.id}</b></td><td>{o.customer}</td><td>{date(o.created_at)}</td><td>{o.items.reduce((s,i)=>s+i.quantity,0)}</td><td>{money(o.total)}</td><td><span className={'status s-'+o.status}>{ORDER_STATUS[o.status]}</span></td><td className="actions">{next[o.status]&&<button className="btn primary small" disabled={busy||!canWrite} onClick={()=>step(o,'advance')}>{next[o.status]}</button>}{['payee','en_preparation'].includes(o.status)&&<button className="btn ghost small" disabled={busy||!canWrite} onClick={()=>step(o,'cancel')}>Annuler</button>}<button className="link" onClick={()=>X(open===o.id?null:o.id)}>{open===o.id?'Masquer':'Détail'}</button></td></tr>
+   {open===o.id&&<tr className="detail-row"><td colSpan={7}><ul className="plain">{o.items.map(i=><li key={i.product_id}>{i.name}<b>{i.quantity} × {money(i.unit_price)}</b></li>)}</ul><p className="muted">Retrait : {o.relay_point} · paiement {o.payment_ref}</p><OrderTrack order={o}/></td></tr>}
+  </Fragment>)}</tbody></table>{!orders.length&&<p className="muted pad">Aucune commande.</p>}</div></section></>
+}
+
+function Supervision(){
+ const [m,M]=useState<Monitor|null>(null),[incidents,I]=useState<Incident[]>([]),[online,O]=useState(true),[at,A]=useState<Date|null>(null)
+ const load=useCallback(async()=>{try{const [mm,ii]=await Promise.all([api('monitor'),api('admin/incidents')]);M(mm);I(ii);O(true)}catch{O(false)}finally{A(new Date())}},[])
+ useEffect(()=>{void load();const t=setInterval(()=>void load(),3000);return()=>clearInterval(t)},[load])
+ return <>
+  <div className="kpis">
+   <div className={'kpi '+(online?'good':'bad')}><small>API boutique</small><strong>{online?'Opérationnelle':'Indisponible'}</strong><span>Sonde toutes les 3 s · {at?at.toLocaleTimeString('fr-FR'):'—'}</span></div>
+   <div className="kpi"><small>Latence moyenne</small><strong>{online&&m?.metrics.latency_ms!=null?m.metrics.latency_ms+' ms':'—'}</strong><span>100 dernières requêtes</span></div>
+   <div className="kpi"><small>Erreurs serveur</small><strong>{online&&m?(m.metrics.error_rate*100).toFixed(1)+' %':'—'}</strong><span>{m?.metrics.sample_count??0} requêtes observées</span></div>
+  </div>
+  {!online&&<p className="alert" role="alert">L’API ne répond plus. Le détecteur IA observe les sondes et déclenchera la remédiation sans intervention humaine.</p>}
+  <section className="panel"><h2>Incidents détectés par l’IA</h2><p className="muted">{m?.note||'Chronologie : détection, action de remédiation, vérification de la reprise par une commande de sonde.'}</p>
+   {!incidents.length&&<p className="muted pad">Aucun incident enregistré.</p>}
+   <ol className="incidents">{incidents.map(i=><li key={i.id} className={'inc-'+i.status}><div className="inc-head"><b>{i.ref}</b><span className={'status inc s-'+i.status}>{INCIDENT[i.status]}</span></div><p>{REASONS[i.reason]||i.reason}</p><dl><div><dt>Détection</dt><dd>{date(i.opened_at)}</dd></div><div><dt>Action</dt><dd>{i.action==='redemarrage_api_boutique'?'Redémarrage de l’API boutique':i.action||'—'}</dd></div><div><dt>Reprise métier</dt><dd>{i.business_verified===true?'Commande de sonde réussie':i.business_verified===false?'Non vérifiée':'En attente'}</dd></div><div><dt>Clôture</dt><dd>{i.closed_at?date(i.closed_at):'—'}</dd></div></dl></li>)}</ol>
+  </section>
+  <section className="panel"><h2>Périmètre restant</h2><p className="muted">Composants du sujet non encore présentés comme opérationnels :</p><ul className="tags">{(m?.missing??[]).map(x=><li key={x}>{x}</li>)}</ul></section>
+ </>
+}
+
+export default function BackOffice({user,role,onLogout}:{user:string;role:string;onLogout:()=>void}){
+ const [tab,T]=useState('dashboard'),canWrite=role!=='viewer'
+ const tabs:[string,string,typeof Wrench][]=[['dashboard','Tableau de bord',LayoutDashboard],['workshop','Atelier',Wrench],['stock','Articles et stocks',Boxes],['orders','Commandes',Truck],['monitor','Supervision SI',Activity],...(role==='admin'?[['users','Utilisateurs',Users] as [string,string,typeof Wrench]]:[])]
+ const title=tabs.find(t=>t[0]===tab)?.[1]
+ async function logout(){await api('auth/logout',{}).catch(()=>{});onLogout()}
+ return <div className="bo">
+  <aside className="bo-side"><a href="/" className="logo">RE<b>ARM</b><small>Back-office</small></a><nav>{tabs.map(([k,label,Icon])=><button key={k} className={tab===k?'on':''} onClick={()=>T(k)}><Icon size={18}/><span>{label}</span></button>)}</nav><div className="bo-user"><ClipboardList size={16}/><span>{user}<small>{role==='admin'?'Administrateur':role==='operator'?'Opérateur atelier':'Lecteur'}</small></span><button onClick={logout} aria-label="Se déconnecter"><LogOut size={17}/></button></div></aside>
+  <main className="bo-main"><header className="bo-head"><h1>{title}</h1>{!canWrite&&<span className="status">Lecture seule</span>}</header>
+   {tab==='dashboard'&&<Dashboard go={T}/>}{tab==='workshop'&&<Workshop canWrite={canWrite}/>}{tab==='stock'&&<Stock canWrite={canWrite}/>}{tab==='orders'&&<Orders canWrite={canWrite}/>}{tab==='monitor'&&<Supervision/>}{tab==='users'&&role==='admin'&&<UserAdmin current={user}/>}
+  </main>
+ </div>
+}

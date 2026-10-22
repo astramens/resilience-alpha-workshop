@@ -1,0 +1,306 @@
+{
+  "uid": "rearm-recovery",
+  "title": "REARM — Reprise et preuve métier",
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": false,
+  "refresh": "10s",
+  "tags": [
+    "REARM",
+    "reprise"
+  ],
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Reprise technique ≠ preuve métier",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Le détecteur peut demander uniquement le redémarrage du backend via la passerelle existante. La sonde interne vérifie le catalogue et une écriture dédiée annulée : elle ne crée ni commande ni paiement. **business_verified** exige une nouvelle commande créée après le rétablissement technique, effectivement réglée en Stripe TEST et confirmée par le serveur. Le rapprochement est automatique, mais le paiement de recette reste effectué par un utilisateur. Aucun test de panne n’est lancé depuis ce tableau. La disponibilité actuelle se lit dans le tableau Disponibilité du SI ; les compteurs ci-dessous décrivent le registre historique."
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Registre accessible · attendu 1",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rearm-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rearm_recovery_ledger_available * on(job,instance) up{job=\"rearm_backend\"}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Aucune mesure"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Reprises techniques attendant une commande payée",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rearm-prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 4,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rearm_recovery_incidents{state=\"technical_recovered\"}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Aucune mesure"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Reprises avec preuve de paiement · historique",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rearm-prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rearm_recovery_incidents{state=\"business_verified\"}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Aucune mesure"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Demandes enregistrées sans résultat final",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rearm-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rearm_recovery_incidents{state=\"remediation\"}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Aucune mesure"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Tentatives en échec · historique",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rearm-prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 9,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rearm_recovery_incidents{state=\"failed\"}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Aucune mesure"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Collecte du backend · attendu 1",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "rearm-prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 9,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"rearm_backend\"}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Aucune mesure"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "logs",
+      "title": "Redémarrage et étapes de validation · noms et références techniques filtrés",
+      "datasource": {
+        "type": "loki",
+        "uid": "rearm-loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 24,
+        "h": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"rearm_logs\",event=~\"ansible_repair_completed|ansible_repair_failed|scoped_backend_restart|recovery_reported|recovery_business_verified\"}",
+          "queryType": "range",
+          "editorMode": "code"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    },
+    {
+      "id": 9,
+      "type": "text",
+      "title": "Lire les résultats",
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "`ansible_repair_completed` : playbook terminé avec un redémarrage ciblé acquitté ; ce signal seul ne prouve pas le retour du service. `ansible_repair_failed` : action en échec ou résultat incertain, sans seconde tentative dans le playbook. `recovery_reported` : le résultat technique est observé, `business_recovery_verified=false`. `recovery_business_verified` : le backend a retrouvé une nouvelle commande effectivement payée après la reprise. Le numéro de preuve se consulte localement avec `python scripts/recovery_check.py`, sans révéler les secrets. Les incidents SOC numériques (ex. waf_burst) et les dossiers de reprise INC-... sont deux registres distincts. L’absence de log n’est pas une preuve de succès."
+      }
+    }
+  ]
+}

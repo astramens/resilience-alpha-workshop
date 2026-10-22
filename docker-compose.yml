@@ -1,3 +1,10 @@
+x-identity-env: &identity-env
+  OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?Run python scripts/configure.py first}
+  OPERATOR_USERNAME: ${OPERATOR_USERNAME:-operateur}
+  ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://192.168.137.1:3000}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  DATABASE_URL: postgresql://${POSTGRES_USER:-resilience}:${POSTGRES_PASSWORD:?Run python scripts/configure.py first}@db:5432/${POSTGRES_DB:-resilience}
+
 services:
   db:
     image: postgres:15-alpine
@@ -7,26 +14,28 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python scripts/configure.py first}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./db/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+      - ./db/face-auth.sql:/docker-entrypoint-initdb.d/20-face.sql:ro
+      - ./db/shop.sql:/docker-entrypoint-initdb.d/30-shop.sql:ro
+      - ./db/payments.sql:/docker-entrypoint-initdb.d/40-payments.sql:ro
+      - ./db/recovery.sql:/docker-entrypoint-initdb.d/50-recovery.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    networks: [data]
     restart: unless-stopped
 
   backend:
-    build:
-      context: ./backend
+    build: ./backend
     environment:
-      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?Run python scripts/configure.py first}
-      OPERATOR_USERNAME: ${OPERATOR_USERNAME:-operateur}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://192.168.137.1:3000}
-      CAMERA_AGENT_TOKEN: ${CAMERA_AGENT_TOKEN:?Run python scripts/face_setup.py first}
-      LED_DEVICE_TOKEN: ${LED_DEVICE_TOKEN:?Run python scripts/face_setup.py first}
-      FACE_COSINE_THRESHOLD: ${FACE_COSINE_THRESHOLD:-0.45}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-resilience}:${POSTGRES_PASSWORD:?Run python scripts/configure.py first}@db:5432/${POSTGRES_DB:-resilience}
+      <<: *identity-env
+      REMEDIATION_TOKEN: ${REMEDIATION_TOKEN:?Run python scripts/configure.py first}
+      PAYMENT_MODE: ${PAYMENT_MODE:-stripe_test}
+      PAYMENT_PUBLIC_URL: ${PAYMENT_PUBLIC_URL:-http://localhost:3000}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
     depends_on:
       db:
         condition: service_healthy
@@ -35,33 +44,93 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks: [application, data, control, payment_egress, metrics_backend, probe_services]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/tmp:uid=10001,gid=10001,mode=1770,size=32m"]
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 96
+    restart: unless-stopped
+
+  auth:
+    build: ./backend
+    command: ["uvicorn", "auth_app:app", "--host", "0.0.0.0", "--port", "8001", "--no-proxy-headers"]
+    environment:
+      <<: *identity-env
+      CAMERA_AGENT_TOKEN: ${CAMERA_AGENT_TOKEN:?Run python scripts/face_setup.py first}
+      LED_DEVICE_TOKEN: ${LED_DEVICE_TOKEN:?Run python scripts/face_setup.py first}
+      FACE_COSINE_THRESHOLD: ${FACE_COSINE_THRESHOLD:-0.45}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [application, data, probe_services]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
     restart: unless-stopped
 
   ai-engine:
-    build:
-      context: ./ai-engine
+    build: ./ai-engine
+    volumes:
+      - rearm_recovery_detector_v1:/state
     environment:
       BACKEND_URL: http://backend:8000
       REMEDIATION_URL: http://remediation:9000
       REMEDIATION_TOKEN: ${REMEDIATION_TOKEN:?Run python scripts/configure.py first}
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-10}
+      STATE_PATH: /state/pending.json
     depends_on:
       backend:
         condition: service_healthy
       remediation:
         condition: service_started
+    networks: [control]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/tmp:uid=65532,gid=65532,mode=1770,size=64m"]
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 64
     restart: unless-stopped
 
   remediation:
-    build:
-      context: ./remediation
+    build: ./remediation
     environment:
       BACKEND_URL: http://backend:8000
       TARGET_CONTAINER: ${TARGET_CONTAINER:-}
       REMEDIATION_TOKEN: ${REMEDIATION_TOKEN:?Run python scripts/configure.py first}
       COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:-resilience-alpha}
+    depends_on: [docker-guard]
+    networks: [control, docker_control, probe_services]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/tmp:uid=65532,gid=65532,mode=1770,size=64m"]
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 64
+    restart: unless-stopped
+
+  docker-guard:
+    build: ./docker-guard
+    environment:
+      COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:-resilience-alpha}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    networks: [docker_control]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
     restart: unless-stopped
 
   frontend:
@@ -70,12 +139,275 @@ services:
       dockerfile: frontend/Dockerfile
     environment:
       API_INTERNAL_URL: http://backend:8000
+      AUTH_INTERNAL_URL: http://auth:8001
     depends_on:
       backend:
         condition: service_healthy
-    ports:
-      - "3000:3000"
+      auth:
+        condition: service_healthy
+    networks: [waf_back, application]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  waf:
+    image: owasp/modsecurity-crs:nginx-alpine@sha256:873ce68a658d2e3b61484a8a24d215f7d15456e7ce5aec5e7114bf000d743365
+    environment:
+      BACKEND: http://frontend:3000
+      PORT: "8080"
+      MODSEC_RULE_ENGINE: "On"
+      BLOCKING_PARANOIA: "1"
+      DETECTION_PARANOIA: "1"
+      ANOMALY_INBOUND: "5"
+      MODSEC_REQ_BODY_ACCESS: "On"
+      MODSEC_REQ_BODY_LIMIT: "65536"
+      MODSEC_REQ_BODY_NOFILES_LIMIT: "65536"
+      MODSEC_REQ_BODY_LIMIT_ACTION: Reject
+      MODSEC_REQ_BODY_JSON_DEPTH_LIMIT: "64"
+      MODSEC_RESP_BODY_ACCESS: "Off"
+      MODSEC_AUDIT_ENGINE: RelevantOnly
+      MODSEC_AUDIT_LOG: /dev/stdout
+      MODSEC_AUDIT_LOG_FORMAT: Native
+      MODSEC_AUDIT_LOG_PARTS: AZ
+      MODSEC_DEBUG_LOGLEVEL: "0"
+      NGINX_WORKER_PROCESSES: "1"
+    volumes:
+      - ./infra/waf/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
+      - ./infra/waf/default.conf.template:/etc/nginx/templates/conf.d/default.conf.template:ro
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--max-time", "3", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 45s
+    depends_on: [frontend]
+    networks: [waf_front, waf_back]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=3d
+      - --storage.tsdb.retention.size=512MB
+      - --web.listen-address=:9090
+    environment:
+      GOMEMLIMIT: 384MiB
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - rearm_supervision_prometheus_v1:/prometheus
+    depends_on: [blackbox]
+    networks: [observability, metrics_backend]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
+    restart: unless-stopped
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.29.0@sha256:9613f2884689b6fad9f1939f6a3b0388c93a022cfaededb19545b329b5c83dea
+    command: ["--config.file=/etc/blackbox/blackbox.yml", "--web.listen-address=:9115"]
+    volumes:
+      - ./infra/monitoring/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks: [observability, probe_services, probe_public]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.7.9@sha256:0db216b630ae1f348a1584c67f3cead8b4c1fc839169a39501db664744158e28
+    command: ["-config.file=/etc/loki/rearm.yml"]
+    volumes:
+      - ./infra/logging/loki.yml:/etc/loki/rearm.yml:ro
+      - rearm_logs_loki_v1:/loki
+    networks: [log_store]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
+    restart: unless-stopped
+
+  log-gateway:
+    build: ./logging
+    command: ["python", "gateway.py"]
+    # Trusted boundary: Docker socket access is powerful even when mounted :ro.
+    user: "0:0"
+    environment:
+      COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME:-resilience-alpha}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [log_source]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
+    restart: unless-stopped
+
+  incident-engine:
+    build: ./incident-engine
+    volumes:
+      - rearm_incidents_v1:/state
+    networks: [observability, log_store]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
+    restart: unless-stopped
+
+  log-collector:
+    build: ./logging
+    command: ["python", "collector.py"]
+    # Named volume is initialized with this directory ownership from the image.
+    volumes:
+      - rearm_logs_checkpoint_v1:/state
+    depends_on: [loki, log-gateway]
+    networks: [log_source, log_store]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
+    ports: ["127.0.0.1:3001:3000"]
+    environment:
+      GF_SECURITY_ADMIN_USER: superviseur
+      GF_SECURITY_ADMIN_PASSWORD: ${REARM_GRAFANA_PASSWORD:?Run python scripts/monitoring_setup.py first}
+      GF_SECURITY_SECRET_KEY: ${REARM_GRAFANA_SECRET_KEY:?Run python scripts/monitoring_setup.py first}
+      GF_SECURITY_COOKIE_SAMESITE: strict
+      GF_SECURITY_ALLOW_EMBEDDING: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_SERVER_ROOT_URL: http://localhost:3001
+      GF_METRICS_ENABLED: "true"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_PLUGINS_PREINSTALL_AUTO_UPDATE: "false"
+      GF_PLUGINS_PLUGIN_ADMIN_ENABLED: "false"
+      GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED: "true"
+      GF_LOG_LEVEL: warn
+    volumes:
+      - rearm_supervision_grafana_v1:/var/lib/grafana
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus]
+    networks: [observability, grafana_access, log_store]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
+    restart: unless-stopped
+
+  edge:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    ports: ["3000:8080"]
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/proxy.conf:/etc/nginx/rearm-proxy.conf:ro
+    depends_on:
+      waf:
+        condition: service_healthy
+    networks: [web, waf_front, probe_public]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
     restart: unless-stopped
 
 volumes:
+  rearm_recovery_detector_v1:
+  rearm_incidents_v1:
+  rearm_logs_loki_v1:
+  rearm_logs_checkpoint_v1:
+  rearm_supervision_prometheus_v1:
+  rearm_supervision_grafana_v1:
   postgres_data:
+
+networks:
+  log_store:
+    internal: true
+  log_source:
+    internal: true
+  grafana_access:
+    driver: bridge
+  observability:
+    internal: true
+  metrics_backend:
+    internal: true
+  probe_services:
+    internal: true
+  probe_public:
+    internal: true
+  waf_front:
+    internal: true
+  waf_back:
+    internal: true
+  payment_egress:
+  web:
+  application:
+    internal: true
+  data:
+    internal: true
+  control:
+    internal: true
+  docker_control:
+    internal: true

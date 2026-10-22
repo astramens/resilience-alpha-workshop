@@ -1,0 +1,59 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 8s
+  external_labels:
+    project: resilience-alpha
+rule_files:
+  - /etc/prometheus/alerts.yml
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['prometheus:9090']
+  - job_name: blackbox
+    static_configs:
+      - targets: ['blackbox:9115']
+  - job_name: grafana
+    static_configs:
+      - targets: ['grafana:3000']
+  - job_name: rearm_backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['backend:8000']
+        labels:
+          service: API commerce
+  - job_name: rearm_http
+    metrics_path: /probe
+    params:
+      module: [http_health]
+    static_configs:
+      - targets: ['http://backend:8000/health']
+        labels: {service: API et base}
+      - targets: ['http://auth:8001/health']
+        labels: {service: Authentification}
+      - targets: ['http://remediation:9000/health']
+        labels: {service: Service de remédiation}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+  - job_name: rearm_public
+    metrics_path: /probe
+    params:
+      module: [http_catalogue]
+    static_configs:
+      - targets: ['http://edge:8080/api/shop/products']
+        labels: {service: Boutique via WAF}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+  - job_name: rearm_incidents
+    static_configs:
+      - targets: ['incident-engine:9108']

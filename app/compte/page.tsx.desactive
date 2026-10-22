@@ -1,0 +1,30 @@
+'use client'
+import Link from 'next/link'
+import {useCallback,useEffect,useState} from 'react'
+import {LogOut,RefreshCw} from 'lucide-react'
+import StoreShell from '@/components/store-shell'
+import CustomerAuth from '@/components/customer-auth'
+import OrderTrack from '@/components/order-track'
+import {api,date,money,ORDER_STATUS,type Customer,type Order} from '@/lib/shop'
+
+export default function Account(){
+ const [customer,C]=useState<Customer|null|undefined>(undefined),[orders,O]=useState<Order[]>([]),[error,E]=useState(''),[busy,B]=useState(false)
+ const load=useCallback(async()=>{B(true);try{O(await api('shop/orders'));E('')}catch(e){if((e as {status?:number}).status===401)C(null);else E((e as Error).message)}finally{B(false)}},[])
+ useEffect(()=>{api('shop/me').then(C).catch(()=>C(null))},[])
+ useEffect(()=>{if(!customer)return;void load();const t=setInterval(()=>void load(),10000);return()=>clearInterval(t)},[customer,load])
+ async function logout(){await api('shop/logout',{}).catch(()=>{});C(null);O([])}
+ return <StoreShell><main className="narrow">
+  {customer===undefined&&<p className="muted">Vérification de la session…</p>}
+  {customer===null&&<><h1>Mon compte</h1><CustomerAuth onLogin={C}/></>}
+  {customer&&<>
+   <div className="page-head"><div><p className="kicker">Espace client</p><h1>Bonjour {customer.display_name}</h1></div><div className="row"><button className="btn ghost" onClick={load} disabled={busy}><RefreshCw size={16} className={busy?'spin':''}/>Actualiser</button><button className="btn ghost" onClick={logout}><LogOut size={16}/>Déconnexion</button></div></div>
+   {error&&<p className="alert" role="alert">{error}</p>}
+   {!orders.length&&!error&&<div className="panel empty-cart"><p>Aucune commande pour le moment.</p><Link className="btn primary" href="/">Découvrir le catalogue</Link></div>}
+   {orders.map(o=><article className="panel order" id={'commande-'+o.id} key={o.id}>
+    <header><div><b>Commande n° {o.id}</b><small>{date(o.created_at)} · paiement {o.payment_ref} · {o.relay_point}</small></div><span className={'status s-'+o.status}>{ORDER_STATUS[o.status]}</span></header>
+    <ul className="order-items">{o.items.map(i=><li key={i.product_id}><Link href={'/produit/'+i.product_id}>{i.name}</Link><span>{i.quantity} × {money(i.unit_price)}</span></li>)}<li className="total"><span>Total</span><b>{money(o.total)}</b></li></ul>
+    <OrderTrack order={o}/>
+   </article>)}
+  </>}
+ </main></StoreShell>
+}

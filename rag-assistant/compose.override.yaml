@@ -1,0 +1,9 @@
+﻿services:
+  rag-assistant:
+    networks:
+      - rag_local
+      - rag_web
+
+networks:
+  rag_web:
+    driver: bridge

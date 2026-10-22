@@ -1,0 +1,112 @@
+{
+  "hero": {
+    "title": "Flintlock Pistol Props for Sale - Age of Chivalry 2018.jpg",
+    "artist": "Noah Wulf",
+    "license": "CC BY-SA 4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Flintlock_Pistol_Props_for_Sale_-_Age_of_Chivalry_2018.jpg",
+    "file": "hero.jpg",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "checked_on": "2026-10-21",
+    "changes": "Copie redimensionnée fournie avec le projet ; cadrage de présentation dans le navigateur. Pas de retouche ajoutée dans cette mise à jour.",
+    "sha256": "0a6ad1ad8079559425dea88989f042cea71b03726780daaeead2c98b294733ee"
+  },
+  "RP-PIS-001": {
+    "title": "Colt 1911 airsoft 02.jpg",
+    "artist": "Алексей Трефилов",
+    "license": "CC BY-SA 4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Colt_1911_airsoft_02.jpg",
+    "file": "RP-PIS-001.jpg",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "checked_on": "2026-10-21",
+    "changes": "Copie redimensionnée fournie avec le projet ; cadrage de présentation dans le navigateur. Pas de retouche ajoutée dans cette mise à jour.",
+    "sha256": "64ecdab049b31b5ee731853977a6532d611efedb1ec2b48a3c6b3896271a288e"
+  },
+  "RP-PIS-002": {
+    "title": "9mmMP Airsoft Gun 20101202-01.jpeg",
+    "artist": "Crescent moon",
+    "license": "CC BY 3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:9mmMP_Airsoft_Gun_20101202-01.jpeg",
+    "file": "RP-PIS-002.jpg",
+    "license_url": "https://creativecommons.org/licenses/by/3.0/",
+    "checked_on": "2026-10-21",
+    "changes": "Copie redimensionnée fournie avec le projet ; cadrage de présentation dans le navigateur. Pas de retouche ajoutée dans cette mise à jour.",
+    "sha256": "071a901bb0803a31b0266648f8dbba0c8b95cffb28bb33f3318eb6d85a60b757"
+  },
+  "RP-FUS-003": {
+    "title": "AK-74M airsoft 04.jpg",
+    "artist": "Алексей Трефилов",
+    "license": "CC BY-SA 4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:AK-74M_airsoft_04.jpg",
+    "file": "RP-FUS-003.jpg",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "checked_on": "2026-10-21",
+    "changes": "Copie redimensionnée fournie avec le projet ; cadrage de présentation dans le navigateur. Pas de retouche ajoutée dans cette mise à jour.",
+    "sha256": "05c4093ecb506d5cc48a9f7b70296f0dcb3e75551f289335a77ee77de8fc0b05"
+  },
+  "RP-FUS-004": {
+    "title": "Airsoft rifle AK-47.jpg",
+    "artist": "Reifik",
+    "license": "CC BY-SA 4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Airsoft_rifle_AK-47.jpg",
+    "file": "RP-FUS-004.jpg",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "checked_on": "2026-10-21",
+    "changes": "Copie redimensionnée fournie avec le projet ; cadrage de présentation dans le navigateur. Pas de retouche ajoutée dans cette mise à jour.",
+    "sha256": "bfcfc251c9891a3963e2809d58b585c406bbb4dc2cdf020c837be7a4348936d9"
+  },
+  "RP-ARB-001": {
+    "title": "Crossbow MET 268234.jpg",
+    "artist": "The Metropolitan Museum of Art",
+    "license": "CC0",
+    "source": "https://commons.wikimedia.org/wiki/File:Crossbow_MET_268234.jpg",
+    "file": "RP-ARB-001.jpg",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "checked_on": "2026-10-21",
+    "changes": "Copie redimensionnée fournie avec le projet ; cadrage de présentation dans le navigateur. Pas de retouche ajoutée dans cette mise à jour.",
+    "sha256": "e77f85959a8f32c917dee2aaaf6db3c78bc9b383d401a15628da49eb6ccdbbb9"
+  },
+  "RP-ARB-002": {
+    "title": "Crossbow MET DP282466.jpg",
+    "artist": "The Metropolitan Museum of Art / Zeray (métadonnées de la photographie)",
+    "license": "CC0",
+    "source": "https://commons.wikimedia.org/wiki/File:Crossbow_MET_DP282466.jpg",
+    "file": "RP-ARB-002.jpg",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "checked_on": "2026-10-21",
+    "changes": "Copie redimensionnée fournie avec le projet ; cadrage de présentation dans le navigateur. Pas de retouche ajoutée dans cette mise à jour.",
+    "sha256": "2ec9cb7f809673f6404295a95696ee2eca0c2f331c089c47170e35e0d03406f3"
+  },
+  "RP-COU-002": {
+    "title": "Armes en mousse artisanales pour du GN.jpg",
+    "artist": "Noé",
+    "license": "CC BY-SA 4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Armes_en_mousse_artisanales_pour_du_GN.jpg",
+    "file": "RP-COU-002.jpg",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "checked_on": "2026-10-21",
+    "changes": "Copie redimensionnée fournie avec le projet ; cadrage de présentation dans le navigateur. Pas de retouche ajoutée dans cette mise à jour.",
+    "sha256": "6f6630533b607a31ea9680c66262868bbfa159d21aada212edfb83b7f7a0e2bb"
+  },
+  "RP-INE-001": {
+    "title": "Inert training grenade made from hard rubber.JPG",
+    "artist": "Vic2015",
+    "license": "CC BY-SA 4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Inert_training_grenade_made_from_hard_rubber.JPG",
+    "file": "RP-INE-001.jpg",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "checked_on": "2026-10-21",
+    "changes": "Copie redimensionnée fournie avec le projet ; cadrage de présentation dans le navigateur. Pas de retouche ajoutée dans cette mise à jour.",
+    "sha256": "f108e175bea2adc648b03959890a6008e99e6031bfd154ed43ec6d71b1b73f9d"
+  },
+  "RP-INE-002": {
+    "title": "Dynamite box at Indianapolis, (Jones Barn) LOC 2162652567.jpg",
+    "artist": "The Library of Congress",
+    "license": "Aucune restriction de droit d’auteur connue (notice de l’institution)",
+    "source": "https://commons.wikimedia.org/wiki/File:Dynamite_box_at_Indianapolis,_(Jones_Barn)_LOC_2162652567.jpg",
+    "file": "RP-INE-002.jpg",
+    "license_url": "https://www.flickr.com/commons/usage/",
+    "checked_on": "2026-10-21",
+    "changes": "Copie redimensionnée fournie avec le projet ; cadrage de présentation dans le navigateur. Pas de retouche ajoutée dans cette mise à jour.",
+    "sha256": "397b1c3af43b4c59ed3827fc0eb3f321fbb2b6531d0f8cfbb3674631b15bbe50"
+  }
+}

@@ -1,0 +1,10 @@
+'use client'
+import {date,ORDER_STATUS,ORDER_STEPS,type Order} from '@/lib/shop'
+
+export default function OrderTrack({order}:{order:Order}){
+ const reached=order.status==='annulee'?-1:ORDER_STEPS.indexOf(order.status)
+ return <div className="track">
+  <ol className="steps">{ORDER_STEPS.map((s,i)=><li key={s} className={i<=reached?'done':''}><span/>{ORDER_STATUS[s]}</li>)}</ol>
+  <ul className="events">{[...order.events].reverse().map((e,i)=><li key={i}><b>{ORDER_STATUS[e.status]||e.status}</b><time>{date(e.created_at)}</time><p>{e.note}</p></li>)}</ul>
+ </div>
+}

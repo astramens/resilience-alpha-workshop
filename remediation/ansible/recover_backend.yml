@@ -1,0 +1,11 @@
+---
+- name: Scoped backend recovery through the existing Docker guard
+  hosts: recovery_controller
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Restart exactly the configured Compose backend, or inspect in check mode
+      rearm_backend_restart:
+        project: "{{ lookup('ansible.builtin.env', 'COMPOSE_PROJECT') }}"
+        target: "{{ lookup('ansible.builtin.env', 'TARGET_CONTAINER') }}"
+

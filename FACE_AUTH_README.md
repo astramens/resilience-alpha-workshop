@@ -1,3 +1,5 @@
+> Mise à jour REARM : suivre d’abord le README principal. Les routes caméra et LED sont désormais servies par le service `auth`, via le même port 3000. Les identifiants, jetons et empreintes existants restent valides. Le back-office est à `/admin`.
+
 # Mise à jour : authentification par caméra USB du PC Hôte
 
 Cette mise à jour s'applique à ResiliencePay 0.2.0. Les données de paiement restent dans PostgreSQL. Elle remplace la connexion par mot de passe seul. Les anciens tests `scripts/smoke_test.py` qui se connectaient sans visage ne sont donc plus applicables après activation.

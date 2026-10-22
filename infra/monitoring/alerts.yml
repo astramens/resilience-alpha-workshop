@@ -1,0 +1,30 @@
+groups:
+  - name: rearm_availability
+    rules:
+      - alert: RearmServiceDown
+        expr: probe_success{job=~"rearm_http|rearm_public"} == 0
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: '{{ $labels.service }} ne répond plus à la sonde'
+          description: 'Échec de sonde depuis 30 secondes. Cela ne déclenche aucune réparation dans cette étape.'
+      - alert: RearmProbeCollectionFailed
+        expr: up{job=~"rearm_http|rearm_public"} == 0
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: 'Collecte de sonde interrompue : {{ $labels.service }}'
+          description: 'La mesure manque. Ne pas interpréter cela comme un service sain.'
+      - alert: RearmBackendMetricsMissing
+        expr: up{job="rearm_backend"} == 0
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: 'Métriques de l’API indisponibles'
+      - alert: RearmProbeSlow
+        expr: probe_duration_seconds{job=~"rearm_http|rearm_public"} > 1.5
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: 'Sonde lente : {{ $labels.service }}'
+          description: 'Durée de sonde supérieure à 1,5 seconde depuis deux minutes.'

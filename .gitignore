@@ -23,3 +23,25 @@ __pycache__/
 .face-backup-*/
 host-camera/models/
 .venv-camera/
+
+.rearm-backup-*/
+backups/
+esp8266-led/include/secrets.h
+
+# REARM — secrets and copies must stay local
+secrets/
+secrets-restore*/
+REARM-secrets*/
+*.sops.json
+*.age
+*.key
+*.pem
+*.p12
+*.pfx
+keys.txt
+age-key*.txt
+identity.txt
+.env*
+.camera-agent.json*
+secrets.h*
+*.bak-*

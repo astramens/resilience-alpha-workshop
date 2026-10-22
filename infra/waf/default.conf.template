@@ -1,0 +1,30 @@
+server_tokens off;
+server {
+    listen 8080 default_server;
+    server_name _;
+    client_max_body_size 64k;
+    client_body_buffer_size 64k;
+    add_header X-Rearm-Inspection "active" always;
+    add_header X-Rearm-Request-ID $http_x_rearm_request_id always;
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "OK\n";
+    }
+    location / {
+        proxy_set_header Host $http_host;
+        proxy_set_header Proxy "";
+        # Only edge can enter the WAF-facing network; it overwrites these headers.
+        proxy_set_header X-Rearm-Client-IP $http_x_rearm_client_ip;
+        proxy_set_header X-Rearm-Request-ID $http_x_rearm_request_id;
+        proxy_set_header X-Forwarded-For $http_x_rearm_client_ip;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 70s;
+        proxy_send_timeout 15s;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_pass http://frontend:3000;
+    }
+}

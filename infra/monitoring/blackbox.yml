@@ -1,0 +1,24 @@
+modules:
+  http_health:
+    prober: http
+    timeout: 5s
+    http:
+      valid_status_codes: [200]
+      method: GET
+      follow_redirects: false
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+  http_catalogue:
+    prober: http
+    timeout: 5s
+    http:
+      valid_status_codes: [200]
+      method: GET
+      follow_redirects: false
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      fail_if_body_not_matches_regexp: ['^\[']
+      fail_if_header_not_matches:
+        - header: X-Rearm-Inspection
+          regexp: '^active$'
+          allow_missing: false

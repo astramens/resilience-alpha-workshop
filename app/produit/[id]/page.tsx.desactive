@@ -1,0 +1,38 @@
+'use client'
+import Link from 'next/link'
+import {useParams} from 'next/navigation'
+import {useEffect,useState} from 'react'
+import {ArrowLeft,Check,ShoppingCart,X} from 'lucide-react'
+import StoreShell,{ProductVisual} from '@/components/store-shell'
+import {addToCart,api,CATEGORIES,date,GRADES,money,STAGES,type ProductDetail} from '@/lib/shop'
+
+export default function ProductPage(){
+ const {id}=useParams<{id:string}>()
+ const [p,P]=useState<ProductDetail|null>(null),[error,E]=useState(''),[qty,Q]=useState(1),[added,A]=useState(false)
+ useEffect(()=>{api('shop/products/'+encodeURIComponent(id)).then(P).catch(e=>E((e as Error).message))},[id])
+ return <StoreShell><main className="product-page">
+  <Link href="/" className="back"><ArrowLeft size={16}/>Retour au catalogue</Link>
+  {error&&<p className="alert" role="alert">{error}</p>}
+  {!p&&!error&&<p className="muted">Chargement de la fiche…</p>}
+  {p&&<>
+   <section className="product-top">
+    <figure className="product-photo"><ProductVisual category={p.category} sku={p.sku} grade={p.grade} image={p.image} alt={p.name} large/>{p.image_credit&&<figcaption>{p.image_credit} · <Link href="/credits">crédits</Link></figcaption>}</figure>
+    <div className="product-info">
+     <span className="card-cat">{CATEGORIES[p.category]} · {p.sku}</span>
+     <h1>{p.name}</h1>
+     <p className="lead">{p.description}</p>
+     <div className="facts"><div><small>État</small><b>{p.grade} · {GRADES[p.grade]}</b></div><div><small>Stock</small><b className={p.stock>0?'ok':'ko'}>{p.stock>0?p.stock+' disponible(s)':'Épuisé'}</b></div></div>
+     <strong className="price">{money(p.price)}</strong>
+     <div className="buy"><label>Quantité<select value={qty} onChange={e=>Q(Number(e.target.value))} disabled={p.stock<1}>{Array.from({length:Math.max(1,Math.min(5,p.stock))},(_,i)=><option key={i} value={i+1}>{i+1}</option>)}</select></label><button className="btn primary" disabled={p.stock<1} onClick={()=>{addToCart(p,qty);A(true)}}><ShoppingCart size={17}/>{added?'Ajouté au panier':'Ajouter au panier'}</button>{added&&<Link href="/panier" className="btn ghost">Voir le panier</Link>}</div>
+     <p className="legal">Réplique inerte et non fonctionnelle, destinée au décor, au spectacle ou à la collection. Aucun usage de défense ou de chasse.</p>
+    </div>
+   </section>
+   <section className="product-grid">
+    <div className="panel"><h2>Caractéristiques</h2><dl className="specs">{Object.entries(p.specs).map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl></div>
+    <div className="panel"><h2>État et réparations</h2><h3>Défauts relevés</h3><p>{p.defects||'—'}</p><h3>Réparations réalisées</h3><p>{p.repairs||'—'}</p></div>
+    <div className="panel"><h2>Contrôles avant vente</h2><ul className="checks">{p.checks.map(c=><li key={c.label} className={c.ok?'ok':'ko'}>{c.ok?<Check size={16}/>:<X size={16}/>}{c.label}</li>)}</ul></div>
+   </section>
+   <section className="panel passport"><p className="kicker">Passeport de l’équipement</p><h2>Historique de reconditionnement</h2><ol>{p.passport.map((s,i)=><li key={i}><span className="dot"/><div><b>{STAGES[s.stage]||s.stage}</b><time>{date(s.created_at)}</time><p>{s.note}</p></div></li>)}</ol></section>
+  </>}
+ </main></StoreShell>
+}

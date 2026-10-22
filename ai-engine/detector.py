@@ -2,6 +2,9 @@ import json
 import math
 import os
 import time
+import uuid
+from pathlib import Path
+from datetime import datetime, timezone
 
 import requests
 from sklearn.ensemble import IsolationForest
@@ -18,12 +21,44 @@ def log(event, **fields):
 
 
 class Detector:
-    def __init__(self):
+    def __init__(self, state_path=None):
         self.model = IsolationForest(contamination="auto", random_state=42)
         self.baseline = []
         self.ready = False
         self.health_failures = 0
         self.last_attempt = -math.inf
+        # Offline reports are persisted without credentials or raw remote replies.
+        self.state_path = Path(state_path) if state_path else None
+        self.pending = {}
+        self.verified_refs = set()
+        if self.state_path and self.state_path.exists():
+            try:
+                data = json.loads(self.state_path.read_text())
+                if not isinstance(data, dict) or len(data) > 1000: raise ValueError()
+                self.pending = data
+            except (ValueError, OSError):
+                raise RuntimeError("Pending recovery state invalid; preserve the volume for review") from None
+
+    def save(self):
+        if self.state_path:
+            temporary = self.state_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(self.pending), encoding="utf-8")
+            temporary.replace(self.state_path)
+
+    def reconcile(self, session, token):
+        try:
+            response = session.post(f"{BACKEND_URL}/internal/recovery/reconcile", timeout=4,
+                                    headers={"Authorization": "Bearer " + token})
+            response.raise_for_status()
+            for incident in response.json().get("incidents", []):
+                ref = incident.get("ref")
+                if (incident.get("state") == "business_verified"
+                        and incident.get("business_recovery_verified") is True
+                        and ref not in self.verified_refs):
+                    self.verified_refs.add(ref)
+                    log("recovery_business_verified", ref=ref, business_recovery_verified=True)
+        except (requests.RequestException, ValueError, TypeError, AttributeError):
+            log("recovery_verification_unavailable", action="observe_only")
 
     def observe(self, healthy, latency_ms, error_rate=None):
         """latency_ms is THIS health probe's duration, never an old API request."""
@@ -52,6 +87,28 @@ class Detector:
                 "health_failures": self.health_failures, "baseline_samples": len(self.baseline),
                 "recovery_reason": reason}
 
+    def report(self, session, token, incident):
+        if incident["ref"] not in self.pending and len(self.pending) >= 1000:
+            raise RuntimeError("Pending recovery report capacity reached")
+        self.pending[incident["ref"]] = dict(incident)
+        self.save()
+        self.flush(session, token)
+
+    def flush(self, session, token):
+        for ref, state in list(self.pending.items()):
+            try:
+                response = session.post(f"{BACKEND_URL}/internal/incidents", json=state, timeout=3,
+                                        headers={"Authorization": "Bearer " + token})
+            except requests.RequestException:
+                return
+            if response.ok and self.pending.get(ref) == state:
+                del self.pending[ref]
+                self.save()
+            elif response.status_code in (400, 401, 409, 422):
+                # Keep rejected reports for review/credential repair; never silently discard evidence.
+                log("incident_report_rejected", ref=ref, http_status=response.status_code)
+                return
+
     def dispatch(self, observation, session, token, now=None):
         now = time.monotonic() if now is None else now
         if not observation["recovery_reason"]:
@@ -61,6 +118,10 @@ class Detector:
             return False
         # Record BEFORE sending, including on 429/timeout. Never recursively alert.
         self.last_attempt = now
+        incident = {"ref": "INC-" + uuid.uuid4().hex[:12], "status": "remediation",
+                    "reason": observation["recovery_reason"], "action": "redemarrage_api_boutique",
+                    "detail": observation, "opened_at": datetime.now(timezone.utc).isoformat()}
+        self.report(session, token, incident)
         try:
             response = session.post(
                 f"{REMEDIATION_URL}/alerts",
@@ -69,13 +130,20 @@ class Detector:
                       "metrics": observation}, timeout=60)
             response.raise_for_status()
             result = response.json()
-            if result.get("status") not in ("health_restored", "remediated"):
-                log("recovery_unconfirmed", http_status=response.status_code)
-                return False
-            log("health_recovery_reported", business_recovery_verified=False,
-                reason=observation["recovery_reason"])
-            return True
-        except (requests.RequestException, ValueError):
+            if not isinstance(result, dict): raise ValueError("Invalid remediation response")
+            technical = result.get("technical_recovery_verified") is True
+            # A dry-run/health response cannot assert a successful payment.
+            safe_result = {"technical_recovery_verified": technical, "business_recovery_verified": False}
+            incident.update(status="attente_metier" if technical else "echec", result=safe_result,
+                            business_verified=False)
+            self.report(session, token, incident)
+            log("recovery_reported", ref=incident["ref"], technical_recovery_verified=technical,
+                business_recovery_verified=False, reason=observation["recovery_reason"])
+            return technical
+        except (requests.RequestException, ValueError) as exc:
+            incident.update(status="echec", result={"error": exc.__class__.__name__}, business_verified=False,
+                            closed_at=datetime.now(timezone.utc).isoformat())
+            self.report(session, token, incident)
             log("recovery_request_failed", retry_after_seconds=COOLDOWN_SECONDS)
             return False
 
@@ -110,6 +178,9 @@ def poll(detector, session, token):
         except (requests.RequestException, ValueError, KeyError, TypeError):
             log("metrics_collection_error", action="observe_only")
 
+    detector.flush(session, token)
+    if healthy:
+        detector.reconcile(session, token)
     observation = detector.observe(healthy, duration, error_rate)
     log("observation", **observation)
     detector.dispatch(observation, session, token)
@@ -120,7 +191,7 @@ def main():
     if not token:
         raise RuntimeError("Missing remediation token")
 
-    detector = Detector()
+    detector = Detector(os.getenv("STATE_PATH"))
     log(
         "detector_started",
         baseline_samples=BASELINE_SAMPLES,

@@ -1,47 +1,5 @@
-import type { Metadata, Viewport } from 'next'
+import type {Metadata,Viewport} from 'next'
 import './globals.css'
-
-export const metadata: Metadata = {
-  title: 'RESILIENCE-ALPHA · Command Center',
-  description: 'ResiliencePay and AIOps cyber-resilience monitoring console.',
-  generator: 'v0.app',
-  icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
-  },
-}
-
-export const viewport: Viewport = {
-  colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: 'white' },
-    { media: '(prefers-color-scheme: dark)', color: 'black' },
-  ],
-}
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
-  return (
-    <html lang="fr">
-      <body className="antialiased">
-        {children}
-      </body>
-    </html>
-  )
-}
+export const metadata:Metadata={title:'REARM — Une autre vie. Le même caractère.',description:'Répliques et accessoires de cinéma reconditionnés. Boutique fictive du workshop RESILIENCE-ALPHA.',icons:{icon:'/icon.svg'}}
+export const viewport:Viewport={width:'device-width',initialScale:1,themeColor:'#14201b',colorScheme:'light'}
+export default function RootLayout({children}:Readonly<{children:React.ReactNode}>){return <html lang="fr"><body>{children}</body></html>}

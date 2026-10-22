@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from fastapi import FastAPI, HTTPException, Request, Response, Depends
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from security import hash_password, check_password, token_hash, valid_amount
 
@@ -35,16 +35,24 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title='ResiliencePay API', version='0.2.0', lifespan=lifespan)
+app = FastAPI(title='REARM Commerce API', version='1.0.0', lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
 
 @app.middleware('http')
 async def observe(request: Request, call_next):
-    if request.method not in ('GET', 'HEAD', 'OPTIONS') and request.url.path != '/internal/metrics':
+    from recovery import INTERNAL_POSTS, authorize
+    if request.method not in ('GET', 'HEAD', 'OPTIONS') and request.url.path in INTERNAL_POSTS:
+        try: authorize(request)
+        except HTTPException: return JSONResponse({'detail':'Internal authorization required'},status_code=401)
+    if request.method not in ('GET', 'HEAD', 'OPTIONS') and request.url.path not in ('/internal/metrics','/api/shop/payments/webhook',*INTERNAL_POSTS):
         if request.headers.get('origin') not in ALLOWED_ORIGINS:
             return Response('Origin not allowed', status_code=403)
     started = time.perf_counter()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except psycopg2.Error:
+        print('{"event":"database_request_failed"}',flush=True)
+        response = JSONResponse({'detail':'Base de données momentanément indisponible.'},status_code=503)
     if request.url.path.startswith('/api/'):
         metrics.append({'timestamp': datetime.now(timezone.utc).isoformat(), 'status': response.status_code,
                         'latency_ms': round((time.perf_counter() - started) * 1000, 2)})
@@ -152,8 +160,9 @@ def metric_summary():
 
 @app.get('/metrics', response_class=PlainTextResponse)
 def prometheus():
+    from recovery import metrics as recovery_metrics
     summary = metric_summary()
-    return f"# TYPE resilience_api_requests_window gauge\nresilience_api_requests_window {summary['sample_count']}\n# TYPE resilience_api_error_rate gauge\nresilience_api_error_rate {summary['error_rate']}\n"
+    return f"# TYPE resilience_api_requests_window gauge\nresilience_api_requests_window {summary['sample_count']}\n# TYPE resilience_api_error_rate gauge\nresilience_api_error_rate {summary['error_rate']}\n" + recovery_metrics(connection)
 
 
 @app.get('/internal/metrics')
@@ -163,10 +172,23 @@ def internal_metrics():
 
 @app.get('/api/monitor')
 def monitor(user=Depends(current_user)):
-    return {'observed_at': datetime.now(timezone.utc).isoformat(), 'health': health(), 'metrics': metric_summary(),
-            'missing': ['WAF', 'Service authentification séparé', 'Prometheus / Grafana / Loki', 'Assistant RAG', 'Ansible', 'Vault ou SOPS'],
-            'note': 'Le détecteur et la remédiation ne sont pas encore supervisés par cette interface.'}
+    from monitoring_status import snapshot
+    observed=snapshot()
+    remaining=['Extension de la corrélation de laboratoire vers un SIEM complet','Évaluation du détecteur ML et assistant RAG local','Ansible, gestion chiffrée des secrets et exercice de restauration','Attaque depuis le second PC et preuve de reprise par une nouvelle commande']
+    if not observed['waf_observed']:remaining.insert(0,'Passage par le WAF : observation absente ou sonde en échec')
+    if not observed['available'] or not observed['grafana_observed']:remaining.insert(0,'Supervision Prometheus / Grafana à vérifier')
+    return {'observed_at':datetime.now(timezone.utc).isoformat(),'health':health(),'metrics':metric_summary(),
+            'services':observed['services'],'missing':remaining,
+            'note':'Indicateurs lus dans Prometheus, sondes toutes les 15 secondes. Une mesure absente est traitée comme inconnue. Le passage par le WAF ne prouve pas à lui seul son pouvoir de blocage ; la recette WAF le vérifie séparément. Les sondes ne prouvent ni un paiement réussi ni une réparation métier.'}
 
 
-from face_auth import make_router
-app.include_router(make_router(connection, current_user, COOKIE_SECURE))
+
+from shop import make_router
+app.include_router(make_router(connection,current_user))
+
+from recovery import make_router as make_recovery_router
+app.include_router(make_recovery_router(connection))
+
+# Lab is closed by default. Only a local Docker operator can arm one request.
+from lab_redos import router as lab_router
+app.include_router(lab_router)

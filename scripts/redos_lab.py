@@ -1,0 +1,161 @@
+"""Host-only arming and evidence checks. No mutation during watch/check."""
+import hashlib
+import json
+from pathlib import Path
+import secrets
+import shutil
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+
+from recovery_check import ROOT, observation, private_status
+from https_setup import tls_home, certificate_self_check
+from secret_permissions import private_directory
+from secrets_vault import write_private
+
+RUN = lambda: tls_home() / 'redos-run.json'
+
+
+def docker(args, code=None):
+    result = subprocess.run(['docker', 'compose', *args], cwd=ROOT, input=code,
+                            capture_output=True, text=True, timeout=20)
+    if result.returncode:
+        raise RuntimeError('Operation Docker refusee. Aucun secret a partager.')
+    return result.stdout
+
+
+def logs(service, since):
+    raw = docker(['logs', '--no-log-prefix', '--since=' + since, service])
+    rows = []
+    for line in raw.splitlines():
+        try:
+            row = json.loads(line[line.find('{'):])
+            if isinstance(row, dict): rows.append(row)
+        except ValueError:
+            pass
+    return rows
+
+
+def check():
+    current = observation()
+    if current.get('healthy') is not True or current.get('ml_ready') is not True:
+        raise RuntimeError('Detecteur non calibre ou backend non sain : attendre sans lancer de panne.')
+    status = private_status()
+    if any(x['state'] in ('remediation', 'technical_recovered') for x in status['ledger']['incidents']):
+        raise RuntimeError('Une reprise attend sa preuve metier. Terminer cette commande avant un essai.')
+    processes = docker(['ps', '--status', 'running', '-q', 'ai-engine', 'remediation', 'docker-guard'])
+    if len(processes.strip().splitlines()) != 3:
+        raise RuntimeError('Les trois composants de reprise doivent fonctionner.')
+    for event in logs('ai-engine', '2m'):
+        if event.get('event') in ('recovery_reported', 'recovery_request_failed'):
+            raise RuntimeError('Reprise recente : attendre deux minutes avant cet essai.')
+    docker(['exec', '-T', 'backend', 'python', '-c', 'import lab_redos; print("LAB_INSTALLED")'])
+    return status
+
+
+def arm():
+    before = check()
+    certificate_self_check('192.168.137.1')
+    if RUN().exists():
+        raise RuntimeError('Un essai est deja suivi. Utiliser watch ou disarm avant tout nouvel armement.')
+    now = datetime.now(timezone.utc)
+    folder = ROOT.parent / ('REARM-PC-attaquant-' + now.strftime('%Y%m%d-%H%M%S'))
+    if folder.exists(): raise RuntimeError('Dossier de kit deja present.')
+    private_directory(folder)
+    token = secrets.token_hex(32)
+    ca = (tls_home() / 'ca' / 'rootCA.pem').read_bytes()
+    config = {'url': 'https://192.168.137.1', 'capability': token,
+              'expires': time.time() + 3600, 'ca_sha256': hashlib.sha256(ca).hexdigest()}
+    try:
+        write_private(folder / 'run.json', json.dumps(config).encode())
+        write_private(folder / 'ca.pem', ca)
+        shutil.copy2(ROOT / 'redteam' / 'trigger_redos.py', folder / 'trigger_redos.py')
+        record = {'since': now.isoformat(), 'prior': [x['ref'] for x in before['ledger']['incidents']],
+                  'folder': str(folder)}
+        write_private(RUN(), json.dumps(record).encode())
+        # Token is ONLY stdin, never argv, URL, log, existing .env or telemetry.
+        docker(['exec', '-T', 'backend', 'python', '-c',
+                'import sys,json,lab_redos; lab_redos.arm(json.load(sys.stdin)["token"])'],
+               json.dumps({'token': token}))
+    except Exception:
+        RUN().unlink(missing_ok=True)
+        shutil.rmtree(folder)
+        raise
+    print('LABORATOIRE ARME pour un seul essai, valable une heure.')
+    print('Copier ce dossier complet sur le second PC :', folder)
+    print('Il contient un certificat PUBLIC et une autorisation temporaire limitee au laboratoire.')
+    print('Ne partagez pas run.json. Aucune cle CA privee ni aucun secret existant copie.')
+    print('Second PC : ouvrir PowerShell dans ce dossier puis python trigger_redos.py')
+    print('Ne pas passer de commande pendant le blocage. Aucun conteneur arrete par cette preparation.')
+
+
+def evidence(run):
+    backend = logs('backend', run['since'])
+    names = {x.get('event') for x in backend}
+    if names & {'lab_safety_timeout', 'lab_regex_returned'}:
+        raise RuntimeError('Calcul termine ou secours de 120 s utilise : reprise autonome NON prouvee.')
+    if 'lab_redos_started' not in names:
+        return None
+    repaired = any(x.get('event') == 'ansible_repair_completed'
+                   and x.get('playbook_success') is True and x.get('check_mode') is False
+                   for x in logs('remediation', run['since']))
+    guarded = any(x.get('event') == 'scoped_backend_restart' for x in logs('docker-guard', run['since']))
+    if not (repaired and guarded): return None
+    try:
+        rows = private_status()['ledger']['incidents']
+    except RuntimeError:
+        return None
+    for row in rows:
+        if row['ref'] not in run['prior'] and row['state'] in ('technical_recovered', 'business_verified'):
+            return row
+    return None
+
+
+def watch():
+    run = json.loads(RUN().read_text())
+    end = time.monotonic() + 115
+    while time.monotonic() < end:
+        row = evidence(run)
+        if row:
+            print('REPRISE TECHNIQUE CORRELEE : ReDoS reel, execution Ansible et registre concordent.')
+            print('Incident :', row['ref'], '; etat :', row['state'])
+            print('Creer maintenant une NOUVELLE commande Stripe de TEST puis verifier recovery_check.py.')
+            print('Le laboratoire est ferme apres redemarrage ; le rearmement reintroduit volontairement la faille.')
+            print('Cette recette ne prouve pas encore le paiement ni le Clip Chrono de 60 s.')
+            return
+        print('Observation de la reprise ; aucune action corrective du script...', flush=True)
+        time.sleep(3)
+    raise RuntimeError('Preuves insuffisantes dans la fenetre. Ne pas declarer la recette validee.')
+
+
+def disarm():
+    docker(['exec', '-T', 'backend', 'python', '-c',
+            'import lab_redos; lab_redos.STATE.unlink(missing_ok=True)'])
+    if RUN().exists():
+        run = json.loads(RUN().read_text())
+        # Remove only the ephemeral capability, keep observations and public CA.
+        folder = Path(run['folder'])
+        if folder.parent == ROOT.parent and folder.name.startswith('REARM-PC-attaquant-'):
+            (folder / 'run.json').unlink(missing_ok=True)
+        saved = RUN().with_name('redos-run-' + str(time.time_ns()) + '.json')
+        RUN().replace(saved)
+    print('Armement retire. Cela ne debloque pas un calcul deja en cours et ne redemarre aucun service.')
+    print('Supprimer aussi le run.json copie sur le second PC apres la recette.')
+
+
+if __name__ == '__main__':
+    try:
+        action = sys.argv[1:] or ['check']
+        if action == ['check']:
+            check(); print('CONTROLE PREALABLE OK. Aucun laboratoire arme, aucun calcul ni redemarrage lance.')
+        elif action == ['arm']: arm()
+        elif action == ['watch']: watch()
+        elif action == ['disarm']: disarm()
+        else: raise RuntimeError('Usage : python scripts/redos_lab.py check|arm|watch|disarm')
+    except RuntimeError as exc:
+        print('CONTROLE OU ESSAI NON VALIDE :', str(exc))
+        raise SystemExit(1)
+    except (OSError, ValueError, KeyError, subprocess.TimeoutExpired, KeyboardInterrupt):
+        print('CONTROLE OU ESSAI NON VALIDE. Aucun secret a afficher ; examiner les journaux filtres.')
+        raise SystemExit(1)

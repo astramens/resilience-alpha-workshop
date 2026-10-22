@@ -1,0 +1,27 @@
+'use client'
+import Link from 'next/link'
+import {useEffect,useState} from 'react'
+import {Bomb,Crosshair,Package,ShoppingCart,Sword,Target,User,Wrench} from 'lucide-react'
+import {onCart,readCart} from '@/lib/shop'
+
+const ICONS:Record<string,typeof Crosshair>={pistolets:Crosshair,fusils:Crosshair,arbaletes:Target,couteaux:Sword,explosifs:Bomb,accessoires:Package}
+
+export function ProductVisual({category,sku,grade,image,alt='',large=false}:{category:string;sku:string;grade?:string;image?:string;alt?:string;large?:boolean}){
+ const Icon=ICONS[category]||Package
+ const [broken,B]=useState(false)
+ return <div className={large?'visual large':'visual'}>{image&&!broken?<img src={image} alt={alt} loading="lazy" onError={()=>B(true)}/>:<Icon strokeWidth={1.1} aria-hidden="true"/>}<span className="visual-sku">{sku}</span>{grade&&<span className={'grade grade-'+grade} title={'État '+grade}>{grade}</span>}<span className="visual-stamp">Réplique inerte</span></div>
+}
+
+export default function StoreShell({children}:{children:React.ReactNode}){
+ const [count,C]=useState(0)
+ useEffect(()=>{const update=()=>C(readCart().reduce((n,l)=>n+l.quantity,0));update();return onCart(update)},[])
+ return <div className="store">
+  <div className="topline">Boutique fictive de démonstration · répliques inertes et accessoires de cinéma · aucune vente réelle</div>
+  <header className="store-header">
+   <Link href="/" className="logo">RE<b>ARM</b><small>L’arsenal de seconde vie</small></Link>
+   <nav aria-label="Navigation boutique"><Link href="/">Catalogue</Link><Link href="/#atelier">L’atelier</Link><Link href="/compte"><User size={17}/><span>Mon compte</span></Link><Link href="/admin" className="staff-link"><Wrench size={16}/><span>Espace atelier</span></Link><Link href="/panier" className="cart-link"><ShoppingCart size={18}/><span>Panier</span>{count>0&&<b>{count}</b>}</Link></nav>
+  </header>
+  {children}
+  <footer className="store-footer"><div><span className="logo small">RE<b>ARM</b></span><p>Démonstrateur du workshop RESILIENCE-ALPHA. Tous les articles sont des répliques non fonctionnelles, les paiements sont simulés et aucune donnée bancaire n’est collectée.</p></div><div><Link href="/compte">Suivre une commande</Link><Link href="/admin">Espace atelier (personnel)</Link><Link href="/credits">Crédits photos</Link></div></footer>
+ </div>
+}

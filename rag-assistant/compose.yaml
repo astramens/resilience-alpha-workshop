@@ -1,0 +1,32 @@
+name: rearm-rag
+services:
+  rag-assistant:
+    build: .
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      OLLAMA_URL: http://rearm-ollama:11434
+      LANGSMITH_TRACING: "false"
+      LANGCHAIN_TRACING_V2: "false"
+    volumes:
+      - ./docs:/app/docs:ro
+    networks:
+      - rag_local
+    read_only: true
+    tmpfs:
+      - /tmp:uid=65532,gid=65532,mode=1770,size=256m
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+networks:
+  rag_local:
+    external: true
+    name: rearm-rag-local

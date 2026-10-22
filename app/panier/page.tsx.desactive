@@ -1,0 +1,43 @@
+'use client'
+import Link from 'next/link'
+import {useEffect,useRef,useState} from 'react'
+import {CreditCard,Lock,Trash2} from 'lucide-react'
+import StoreShell,{ProductVisual} from '@/components/store-shell'
+import CustomerAuth from '@/components/customer-auth'
+import {api,money,onCart,readCart,requestId,writeCart,type CartLine,type Customer,type Order} from '@/lib/shop'
+
+export default function Cart(){
+ const [lines,L]=useState<CartLine[]>([]),[customer,C]=useState<Customer|null|undefined>(undefined),[relays,R]=useState<string[]>([]),[relay,Y]=useState(''),[busy,B]=useState(false),[error,E]=useState(''),[order,O]=useState<Order|null>(null)
+ // The same cart keeps the same request id, so retrying after an uncertain answer never creates a second order.
+ const pending=useRef<{signature:string;id:string}|null>(null)
+ useEffect(()=>{const update=()=>L(readCart());update();return onCart(update)},[])
+ useEffect(()=>{api('shop/me').then(C).catch(()=>C(null));api('shop/meta').then(m=>{R(m.relay_points);Y(m.relay_points[0])}).catch(()=>{})},[])
+ const total=lines.reduce((s,l)=>s+l.price*l.quantity,0)
+ function setQty(id:number,q:number){writeCart(lines.map(l=>l.id===id?{...l,quantity:q}:l).filter(l=>l.quantity>0))}
+ async function pay(){
+  if(busy)return;B(true);E('')
+  const items=lines.map(l=>({product_id:l.id,quantity:l.quantity})),signature=JSON.stringify([items,relay])
+  if(pending.current?.signature!==signature)pending.current={signature,id:requestId()}
+  try{const o:Order=await api('shop/orders',{items,relay_point:relay,request_id:pending.current.id});pending.current=null;writeCart([]);O(o)}
+  catch(e){const status=(e as {status?:number}).status;E((e as Error).message+(status&&status<500?'':' Votre panier est conservé : réessayez, la même commande sera reprise sans double paiement.'))}
+  finally{B(false)}
+ }
+ if(order)return <StoreShell><main className="narrow"><div className="panel confirm"><p className="kicker">Commande n° {order.id} confirmée</p><h1>Paiement simulé accepté.</h1><p>Référence de paiement fictive <b>{order.payment_ref}</b> · total {money(order.total)} · retrait : {order.relay_point}.</p><p className="muted">L’atelier prépare maintenant votre commande. Suivez chaque étape depuis votre compte.</p><div className="row"><Link className="btn primary" href={'/compte#commande-'+order.id}>Suivre ma commande</Link><Link className="btn ghost" href="/">Continuer mes achats</Link></div></div></main></StoreShell>
+ return <StoreShell><main className="cart-page">
+  <h1>Panier</h1>
+  {!lines.length?<div className="panel empty-cart"><p>Votre panier est vide.</p><Link className="btn primary" href="/">Parcourir le catalogue</Link></div>:<div className="cart-grid">
+   <section className="panel">{lines.map(l=><div className="cart-line" key={l.id}><ProductVisual category={l.category} sku={'#'+l.id} image={l.image} alt={l.name}/><div><Link href={'/produit/'+l.id}><b>{l.name}</b></Link><small>{money(l.price)} l’unité</small></div><select aria-label={'Quantité de '+l.name} value={l.quantity} onChange={e=>setQty(l.id,Number(e.target.value))}>{[1,2,3,4,5].map(n=><option key={n}>{n}</option>)}</select><strong>{money(l.price*l.quantity)}</strong><button className="btn icon ghost" onClick={()=>setQty(l.id,0)} aria-label={'Retirer '+l.name}><Trash2 size={16}/></button></div>)}</section>
+   <aside className="panel checkout">
+    <h2>Récapitulatif</h2>
+    <div className="sum"><span>Sous-total</span><b>{money(total)}</b></div><div className="sum"><span>Retrait en point relais</span><b>Offert</b></div><div className="sum total"><span>Total</span><b>{money(total)}</b></div>
+    {customer===undefined?<p className="muted">Vérification de la session…</p>:customer===null?<><p className="muted">Connectez-vous pour payer.</p><CustomerAuth onLogin={C}/></>:<>
+     <p className="muted">Client : <b>{customer.display_name}</b></p>
+     <label>Point de retrait<select value={relay} onChange={e=>Y(e.target.value)}>{relays.map(r=><option key={r}>{r}</option>)}</select></label>
+     <div className="sim-pay"><CreditCard size={18}/><div><b>Paiement simulé</b><small>Aucune carte ni donnée bancaire n’est demandée. Le prix et le stock sont revérifiés par le serveur.</small></div></div>
+     {error&&<p className="alert" role="alert">{error}</p>}
+     <button className="btn primary wide" disabled={busy||!relay} onClick={pay}><Lock size={16}/>{busy?'Paiement en cours…':error?'Réessayer le paiement':'Payer '+money(total)}</button>
+    </>}
+   </aside>
+  </div>}
+ </main></StoreShell>
+}

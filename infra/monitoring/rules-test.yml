@@ -1,0 +1,38 @@
+rule_files: [alerts.yml]
+evaluation_interval: 15s
+tests:
+  - name: service_failure_then_recovery
+    interval: 15s
+    input_series:
+      - series: 'probe_success{job="rearm_http",instance="http://backend:8000/health",service="API et base"}'
+        values: '1 0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 15s
+        alertname: RearmServiceDown
+        exp_alerts: []
+      - eval_time: 45s
+        alertname: RearmServiceDown
+        exp_alerts:
+          - exp_labels: {severity: critical, job: rearm_http, instance: 'http://backend:8000/health', service: API et base}
+            exp_annotations:
+              summary: 'API et base ne répond plus à la sonde'
+              description: 'Échec de sonde depuis 30 secondes. Cela ne déclenche aucune réparation dans cette étape.'
+      - eval_time: 60s
+        alertname: RearmServiceDown
+        exp_alerts: []
+  - name: monitoring_failure_is_not_reported_as_health
+    interval: 15s
+    input_series:
+      - series: 'up{job="rearm_http",instance="http://auth:8001/health",service="Authentification"}'
+        values: '0 0 0 0'
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: RearmProbeCollectionFailed
+        exp_alerts:
+          - exp_labels: {severity: warning, job: rearm_http, instance: 'http://auth:8001/health', service: Authentification}
+            exp_annotations:
+              summary: 'Collecte de sonde interrompue : Authentification'
+              description: 'La mesure manque. Ne pas interpréter cela comme un service sain.'
+      - eval_time: 30s
+        alertname: RearmServiceDown
+        exp_alerts: []

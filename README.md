@@ -1,81 +1,71 @@
-# RESILIENCE-ALPHA — base applicative corrigée
+# Mise à jour visuelle et Stripe test
 
-Cette version remplace la maquette par un frontal React/Next relié à une API FastAPI et PostgreSQL. Elle n’est pas encore le démonstrateur complet exigé par le workshop. Lire `AUDIT.md` pour le périmètre restant.
+Cette édition remplace les illustrations affichées par des photos locales avec crédits et retire l’orange d’accent. Elle ajoute Stripe Checkout en mode test : les nouvelles commandes attendent une confirmation du prestataire. Les clés ne sont pas fournies et le paiement reste désactivé tant que la configuration n’est pas faite.
 
-## Démarrage sur Windows / Docker Desktop
+Après installation : sauvegarde `python scripts/backup_db.py`, migration `python scripts/rearm_migrate.py`, puis configuration selon [PAIEMENT_STRIPE.md](PAIEMENT_STRIPE.md). Aucun compte client, visage, commande, stock ou paramètre matériel n’est supprimé par cette migration. Les anciennes commandes gardent la mention de simulation historique.
 
-Prérequis : Python 3 et Docker Desktop démarré avec les conteneurs Linux / WSL2.
-Depuis un terminal ouvert dans ce dossier :
+Voir aussi [VISUELS_ET_LICENCES.md](VISUELS_ET_LICENCES.md) et [VALIDATION_VISUEL_PAIEMENT.md](VALIDATION_VISUEL_PAIEMENT.md). La documentation historique ci-dessous décrit l’édition précédente ; pour le paiement, les instructions Stripe ci-dessus font foi.
 
-```powershell
-python scripts/configure.py
-docker compose config --quiet
-docker compose up --build -d
-docker compose logs -f backend frontend
-```
+---
 
-Ouvrir http://localhost:3000. L’identifiant initial est `operateur`. Le script affiche le mot de passe généré, également conservé dans votre `.env` local. Aucun mot de passe n’est livré dans cette archive. Ne partagez pas votre `.env`.
+# REARM — atelier de seconde vie
 
-Depuis un autre PC du laboratoire : http://192.168.137.1:3000 si c’est bien l’adresse du PC Hôte. Pour une autre adresse, compléter `ALLOWED_ORIGINS` dans `.env`, puis `docker compose up -d`. Les origines doivent inclure le protocole et le port, sans slash final. Le navigateur passe par le frontal : il ne contacte jamais `localhost:8000`.
+Boutique fictive d’accessoires de cinéma reconditionnés, pour le workshop RESILIENCE-ALPHA. Les objets sont factices/inertes ; paiements et retraits sont simulés. Aucun prestataire de paiement ni donnée bancaire.
 
-Le protocole HTTP et le cookie non Secure sont réservés au laboratoire isolé. Pour HTTPS, configurer `COOKIE_SECURE=true` et ajouter l’origine HTTPS. Le service de remédiation conserve le socket Docker : il reste très privilégié, malgré la suppression du port publié et le jeton interne. Ce risque est à traiter avant de parler de durcissement complet.
+## Ce qui fonctionne dans cette version
 
-### En cas d’installation antérieure
+- Catalogue PostgreSQL de 12 pièces, catégories, recherche, filtres d’état, tri, disponibilité et fiches/passeports d’atelier.
+- Compte client (inscription, connexion, déconnexion), panier persistant local, commande avec prix serveur et stock transactionnel, historique privé et annulation.
+- Clé idempotente par commande ; en cas de réponse incertaine, conservation de la même requête dans le navigateur pour la rejouer, y compris après rechargement. Le compte client d’origine doit être utilisé.
+- Back-office `/admin` : authentification caméra USB du PC hôte puis mot de passe, LED physique, rôles administrateur/opérateur/lecteur, gestion du catalogue et des stocks, traitement des commandes, désactivation de clients, gestion de l’équipe et journal métier.
+- Authentification déplacée dans un service `auth` séparé. PostgreSQL, frontend, API, détection existante et remédiation restent dans Compose. Le code du détecteur et le firmware ESP8266 ne sont pas modifiés. Les dépendances Python FastAPI/Starlette/Requests sont mises à jour pour supprimer les avis de sécurité identifiés.
+- Proxy d’entrée, réseaux séparés, limites de débit, conteneurs applicatifs sans privilèges et passerelle Docker à actions limitées.
 
-Ne supprimez aucun volume. Sauvegardez votre ancienne configuration et les données avant de la remplacer. Cette archive ne migre pas automatiquement les secrets ni les données de l’ancien projet.
+Le périmètre restant pour le SI complet est détaillé dans `SECURITE_REARM.md` : WAF, observabilité/SIEM, RAG, Ansible/secrets chiffrés, validation des scénarios d’attaque et de reprise. Ne pas présenter cette version comme un SI entièrement sécurisé ou une IA corrigeant toute faille.
 
-Le script ne remplace jamais un `.env` existant. Si vous conservez un volume PostgreSQL, conservez impérativement son ancien `POSTGRES_PASSWORD` et ajoutez les nouvelles variables de configuration. Modifier `.env` ne modifie pas le mot de passe PostgreSQL déjà initialisé.
+## Mise à jour de votre installation existante
 
-Les scripts d’initialisation ne s’exécutent qu’au premier démarrage de la base. Pour appliquer les nouvelles tables à un volume existant :
+Exécuter chaque étape dans votre dossier actuel `C:\dev\resilience-alpha-corrige\resilience-alpha-corrige`. Conserver le `.env`, `.camera-agent.json`, le volume PostgreSQL, les modèles et `esp8266-led/include/secrets.h` sur votre PC.
 
-```powershell
-docker compose up -d db
-docker compose exec db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /docker-entrypoint-initdb.d/init.sql'
-docker compose up --build -d
-```
+1. Extraire le ZIP REARM-update dans un dossier séparé, sans supprimer votre projet. Lancer son `install.py` depuis le PowerShell positionné dans votre projet actuel. L’installateur sauvegarde les fichiers remplacés dans `.rearm-backup-<date>` ; il ne lance aucune commande Docker et ne modifie aucun secret.
+2. Vérifier que la base actuelle fonctionne : `docker compose ps db`.
+3. Sauvegarder : `python scripts/backup_db.py`. La sauvegarde doit réussir avant la suite. Elle contient des données sensibles et ne doit pas être partagée.
+4. Migrer et ajouter le catalogue : `python scripts/rearm_migrate.py`. Les tables de paiements et les empreintes faciales existantes sont conservées. Cette migration est réexécutable et ne réinitialise pas les stocks.
+5. Reconstruire : `docker compose up -d --build`.
+6. Vérifier : `docker compose ps`. Attendre `healthy` pour `backend` et `auth`. Le nouveau service `edge` publie le port 3000 ; le frontend n’a plus de port directement publié.
+7. Boutique : `http://localhost:3000`. Équipe : `http://localhost:3000/admin`. L’agent caméra doit continuer de tourner sur le PC hôte. L’ESP8266 utilise toujours `http://192.168.137.1:3000` et son jeton existant.
+8. Créer un compte client fictif dans la boutique, ajouter un article, simuler le paiement, vérifier son historique et préparer la commande côté équipe.
+9. Recette automatique complémentaire : `python scripts/shop_smoke.py`. Elle crée un client et une commande fictifs, vérifie le rejeu, puis annule la commande et contrôle le stock.
 
-Le mot de passe opérateur ne sert qu’à créer le compte au premier démarrage de l’API. Le modifier dans `.env` ne change pas un compte déjà créé. La gestion et la rotation des comptes restent à implémenter. Il existe un seul opérateur partagé et un seul compte métier, ce n’est pas un modèle multi-utilisateur.
+Ne pas relancer `scripts/configure.py` pour une mise à jour : il pourrait remplacer votre configuration. Ne pas exécuter `docker compose down -v`.
 
-## Utilisation
+### Si le port 3000 est déjà occupé pendant la première reconstruction
 
-- Se connecter avec le compte généré.
-- Saisir un bénéficiaire fictif, par exemple `DEMO-CLIENT01`, un montant et éventuellement une référence.
-- Le solde et l’historique sont chargés depuis PostgreSQL. Le débit et l’insertion utilisent la même transaction SQL et un verrou sur le compte.
-- Après une réponse réseau incertaine, garder les mêmes champs et réessayer conserve l’identifiant de requête dans l’onglet courant. Après rechargement de page, vérifier d’abord l’historique. L’identifiant n’est pas conservé après fermeture/rechargement de l’onglet.
-- Rechercher, charger 25 ou 100 transactions, consulter les détails et exporter les lignes filtrées en CSV.
-- Dans Supervision : état API + SQL, latence et erreurs des 100 dernières requêtes API conservées en mémoire. Pas de faux score ML, de SLA, ni de RTO.
+Le port doit passer du frontend à `edge`. Compose doit recréer le frontend sans publication avant de démarrer edge. Si Docker signale malgré tout que 3000 est occupé, exécuter `docker compose stop frontend edge`, puis `docker compose up -d frontend edge`. Cela ne supprime pas les données.
 
-## Vérification sur votre machine
+### Démarrage d’un nouvel environnement
 
-```powershell
-python scripts/smoke_test.py
-```
+Exécuter `python scripts/configure.py`, puis `python scripts/face_setup.py`, `docker compose up -d db`, `python scripts/rearm_migrate.py`, puis `docker compose up -d --build`. Suivre `FACE_AUTH_README.md` pour le venv caméra, les modèles, le choix de la caméra USB et le bootstrap initial. La connexion initiale du personnel ne fonctionne pas tant qu’un visage n’a pas été enregistré.
 
-Ce test demande l’URL et les identifiants, crée un paiement fictif de **0,01 EUR**, rejoue la même demande et vérifie qu’un seul débit a eu lieu. Il teste aussi l’historique et la déconnexion. Aucune donnée bancaire réelle n’est utilisée.
+## Rôles
 
-Pour les tests de contrat de l’API :
+| Identité | Droits |
+|---|---|
+| Visiteur | Catalogue et panier local |
+| Client | Ses commandes, annulation avant préparation, aucun droit d’équipe |
+| Lecteur | Consultation du back-office, sans modification |
+| Opérateur | Consultation et progression des commandes |
+| Administrateur | Catalogue, stocks, comptes clients et équipe, commandes |
 
-```powershell
-python -m pip install -r backend/requirements.txt pytest httpx
-python -m pytest tests -q
-```
+Machine à états : confirmée → préparation → prête → retirée. Annulation possible par l’équipe jusqu’au retrait, par le client uniquement avant préparation. Une commande annulée reste dans l’historique. Un article archivé disparaît du catalogue mais reste dans les commandes déjà passées.
 
-Pour le frontal hors Docker : Node 22+, `npm ci`, `npm run build`. Définir `API_INTERNAL_URL=http://127.0.0.1:8000` au lancement si l’API tourne localement. Le dossier `frontend` contient seulement le Dockerfile du frontal.
+## Maintenance
 
-## Services et interfaces
+- Export sans secrets : `python scripts/export_source.py` (conserve les migrations SQL et exclut les dumps).
+- Sauvegarde de base : `python scripts/backup_db.py`.
+- Logs : `docker compose logs --since=5m backend auth edge ai-engine remediation docker-guard`.
+- Ne pas publier `.env`, `.camera-agent.json`, `secrets.h`, les dumps ni les sauvegardes de fichiers. Les identifiants clients de recette sont fictifs.
 
-| Composant | Accès | Rôle |
-|---|---|---|
-| frontend | port hôte 3000 | React et relais `/api/*` côté serveur |
-| backend | réseau Compose, 8000 | session, paiement, historique, mesures |
-| db | réseau Compose, 5432 | données métier, comptes opérateurs, sessions |
-| ai-engine | interne | ancien prototype IsolationForest, adaptation au nouveau endpoint de mesures |
-| remediation | réseau Compose, 9000 | redémarrage du backend du projet configuré, jeton obligatoire |
+## Retour arrière
 
-L’authentification est intégrée à l’API : mots de passe scrypt salés, jetons de session aléatoires dont seule l’empreinte est enregistrée, cookie HttpOnly/SameSite, expiration après huit heures, déconnexion avec révocation en base. Un service d’authentification distinct reste requis pour répondre complètement au sujet.
-
-Le détecteur existant reste un prototype à revoir. Le moteur de remédiation annonce `health_restored`, avec `business_recovery_verified=false` : un check HTTP/SQL ne prouve pas la reprise métier.
-
-## État des vérifications effectuées
-
-Voir `VALIDATION.md`. La recette sur votre PC avec Docker et PostgreSQL reste indispensable. Ne présentez pas les tests utilisant des doublures comme une preuve de fonctionnement de l’infrastructure complète.
+Les fichiers précédents sont dans la sauvegarde de l’installateur. Restaurer ceux-ci, conserver le `.env` et la base, puis reconstruire avec le Compose précédent. Les nouvelles tables `shop_` peuvent rester sans affecter les anciens paiements. Pour une restauration PostgreSQL complète, préparer une base distincte et vérifier le dump avant toute substitution ; ne pas restaurer à l’aveugle par-dessus les données actuelles.

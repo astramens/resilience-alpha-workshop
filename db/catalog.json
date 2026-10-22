@@ -1,0 +1,134 @@
+[
+  {
+    "sku": "RA-P01",
+    "name": "Vesper 09",
+    "category": "pistolets",
+    "grade": "A",
+    "price_cents": 8900,
+    "stock": 8,
+    "description": "Réplique de poing factice pour les scènes rapprochées. Coque en résine, mécanisme absent et finition graphite satinée.",
+    "workshop_note": "Coque inspectée · finition reprise · marquage fictif contrôlé",
+    "image": "prop-1.svg"
+  },
+  {
+    "sku": "RA-F01",
+    "name": "Nomad Carbine",
+    "category": "fusils",
+    "grade": "B",
+    "price_cents": 14900,
+    "stock": 5,
+    "description": "Silhouette de carabine de cinéma, entièrement factice. Corps léger destiné à la décoration de plateau et aux plans larges.",
+    "workshop_note": "Éléments décoratifs fixés · patine conservée · contrôle visuel",
+    "image": "prop-2.svg"
+  },
+  {
+    "sku": "RA-A01",
+    "name": "Arc-7",
+    "category": "arbaletes",
+    "grade": "A",
+    "price_cents": 11900,
+    "stock": 4,
+    "description": "Arbalète décorative sans mécanisme de propulsion. Un accessoire de fiction aux lignes géométriques et à la finition anthracite.",
+    "workshop_note": "Structure décorative inspectée · corde factice remplacée",
+    "image": "prop-3.svg"
+  },
+  {
+    "sku": "RA-L01",
+    "name": "Ghost Blade",
+    "category": "lames",
+    "grade": "A",
+    "price_cents": 3900,
+    "stock": 14,
+    "description": "Couteau de scène à lame souple et non tranchante. Une pièce de fiction restaurée pour compléter un costume.",
+    "workshop_note": "Lame souple inspectée · poignée nettoyée · finition restaurée",
+    "image": "prop-4.svg"
+  },
+  {
+    "sku": "RA-E01",
+    "name": "Core FX",
+    "category": "effets",
+    "grade": "B",
+    "price_cents": 5900,
+    "stock": 7,
+    "description": "Maquette inerte d’un dispositif imaginaire de cinéma. Aucun composant explosif, aucune fonction pyrotechnique.",
+    "workshop_note": "Coque restaurée · éléments décoratifs contrôlés · totalement inerte",
+    "image": "prop-5.svg"
+  },
+  {
+    "sku": "RA-P02",
+    "name": "Echo Compact",
+    "category": "pistolets",
+    "grade": "B",
+    "price_cents": 6900,
+    "stock": 6,
+    "description": "Réplique compacte factice en résine. Patine de tournage volontairement conservée ; aucune pièce de tir.",
+    "workshop_note": "Nettoyage · contrôle de coque · patine stabilisée",
+    "image": "prop-6.svg"
+  },
+  {
+    "sku": "RA-F02",
+    "name": "Sentinel Long",
+    "category": "fusils",
+    "grade": "A",
+    "price_cents": 17900,
+    "stock": 3,
+    "description": "Longue réplique de cinéma factice à la silhouette futuriste. Construction décorative, sans mécanisme de tir.",
+    "workshop_note": "Assemblages décoratifs vérifiés · finition complète",
+    "image": "prop-7.svg"
+  },
+  {
+    "sku": "RA-L02",
+    "name": "Raven Training",
+    "category": "lames",
+    "grade": "C",
+    "price_cents": 2900,
+    "stock": 11,
+    "description": "Accessoire de scène souple, non affûté, avec traces esthétiques visibles. Pour une collection ou une mise en scène fictive.",
+    "workshop_note": "Souplesse vérifiée · poignée reprise · marques esthétiques conservées",
+    "image": "prop-8.svg"
+  },
+  {
+    "sku": "RA-E02",
+    "name": "Signal Module",
+    "category": "effets",
+    "grade": "A",
+    "price_cents": 4500,
+    "stock": 9,
+    "description": "Boîtier de science-fiction inerte. Éléments purement décoratifs pour habiller un décor de cinéma.",
+    "workshop_note": "Coque inspectée · peinture restaurée · éléments fixés",
+    "image": "prop-9.svg"
+  },
+  {
+    "sku": "RA-A02",
+    "name": "Orion Display",
+    "category": "arbaletes",
+    "grade": "C",
+    "price_cents": 7900,
+    "stock": 2,
+    "description": "Pièce décorative au profil d’arbalète, sans capacité de projection. Patine marquée et imperfections documentées.",
+    "workshop_note": "Structure inspectée · décoration restaurée · défauts visuels conservés",
+    "image": "prop-10.svg"
+  },
+  {
+    "sku": "RA-P03",
+    "name": "Atlas Studio",
+    "category": "pistolets",
+    "grade": "A",
+    "price_cents": 9900,
+    "stock": 0,
+    "description": "Réplique de poing factice, édition atelier. Une pièce décorative à finition gris pierre pour les univers de fiction.",
+    "workshop_note": "Révision complète · finition pierre · contrôle de coque",
+    "image": "prop-11.svg"
+  },
+  {
+    "sku": "RA-E03",
+    "name": "Vault Capsule",
+    "category": "effets",
+    "grade": "A",
+    "price_cents": 3500,
+    "stock": 12,
+    "description": "Capsule de décor entièrement inerte. Un objet de fiction sans contenu ni mécanisme dangereux.",
+    "workshop_note": "Nettoyage · reprise de peinture · contrôle visuel",
+    "image": "prop-12.svg"
+  }
+]

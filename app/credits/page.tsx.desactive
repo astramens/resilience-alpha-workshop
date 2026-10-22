@@ -1,0 +1,15 @@
+'use client'
+import {useEffect,useState} from 'react'
+import StoreShell from '@/components/store-shell'
+
+type Credit={title:string;artist:string;license:string;source:string}
+
+export default function Credits(){
+ const [credits,C]=useState<Record<string,Credit>|null>(null)
+ useEffect(()=>{fetch('/products/credits.json').then(r=>r.json()).then(C).catch(()=>C({}))},[])
+ return <StoreShell><main className="narrow">
+  <p className="kicker">Mentions</p><h1>Crédits photos</h1>
+  <p>Les photos du catalogue de démonstration proviennent de Wikimedia Commons et sont réutilisées selon leur licence. Elles illustrent des objets du même type et ne représentent pas les articles fictifs eux-mêmes. Les photos envoyées depuis l’atelier sont indiquées « Photo atelier REARM ».</p>
+  <div className="panel"><ul className="plain credits">{credits&&Object.entries(credits).map(([sku,c])=><li key={sku}><span><b>{sku==='hero'?'Accueil':sku}</b> · {c.title}</span><span>{c.artist} · {c.license} · <a href={c.source} target="_blank" rel="noopener noreferrer">source</a></span></li>)}</ul>{credits&&!Object.keys(credits).length&&<p className="muted">Aucune photo externe.</p>}</div>
+ </main></StoreShell>
+}

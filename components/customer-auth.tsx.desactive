@@ -1,0 +1,22 @@
+'use client'
+import {useState} from 'react'
+import {api,type Customer} from '@/lib/shop'
+
+export default function CustomerAuth({onLogin}:{onLogin:(c:Customer)=>void}){
+ const [mode,M]=useState<'login'|'register'>('login'),[error,E]=useState(''),[busy,B]=useState(false)
+ async function submit(e:React.FormEvent<HTMLFormElement>){
+  e.preventDefault();B(true);E('')
+  try{onLogin(await api('shop/'+mode,Object.fromEntries(new FormData(e.currentTarget))))}catch(e){E((e as Error).message)}finally{B(false)}
+ }
+ return <div className="panel auth-box">
+  <div className="tabs" role="tablist"><button role="tab" aria-selected={mode==='login'} className={mode==='login'?'on':''} onClick={()=>M('login')}>Connexion</button><button role="tab" aria-selected={mode==='register'} className={mode==='register'?'on':''} onClick={()=>M('register')}>Créer un compte</button></div>
+  <form onSubmit={submit} key={mode}>
+   {mode==='register'&&<label>Nom affiché<input name="display_name" required minLength={2} maxLength={80} placeholder="Studio Démo"/></label>}
+   <label>Identifiant<input name="username" required minLength={3} maxLength={40} pattern="[A-Za-z0-9._\-]+" autoComplete="username" placeholder="client-demo"/></label>
+   <label>Mot de passe<input name="password" type="password" required minLength={mode==='register'?10:1} maxLength={256} autoComplete={mode==='register'?'new-password':'current-password'}/>{mode==='register'&&<small>10 caractères minimum. Utilisez un mot de passe propre à cette démonstration.</small>}</label>
+   {error&&<p className="alert" role="alert">{error}</p>}
+   <button className="btn primary wide" disabled={busy}>{busy?'Patientez…':mode==='login'?'Se connecter':'Créer mon compte'}</button>
+  </form>
+  <p className="muted small">Aucune adresse ni donnée bancaire n’est demandée : le retrait se fait en point relais fictif.</p>
+ </div>
+}
